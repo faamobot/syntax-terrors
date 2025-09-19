@@ -131,10 +131,6 @@ export default function Game({
         data.zombies.push(zombie);
       });
       
-      if (waveData.zombies.length === 0 && currentWave > 0) {
-         setTimeout(() => startNewWave(currentWave + 1), 1000);
-      }
-      
     } catch (e) {
       console.error("Failed to generate zombie wave:", e);
       toast({
@@ -155,11 +151,10 @@ export default function Game({
   const despawnZombie = useCallback((zombie: Zombie) => {
     const { current: data } = gameData;
     data.scene.remove(zombie);
-    const newZombies = data.zombies.filter(z => z !== zombie);
-    data.zombies = newZombies;
+    data.zombies = data.zombies.filter(z => z !== zombie);
     setScore(s => s + 100);
     setZombiesRemaining(r => {
-      const newRemaining = newZombies.length;
+      const newRemaining = r - 1;
       if (newRemaining <= 0 && !data.waveInProgress) {
         setTimeout(() => startNewWave(wave + 1), 1000);
       }
@@ -331,7 +326,6 @@ export default function Game({
 
       const delta = clock.getDelta();
       
-      // Camera rotation with arrow keys
       const lookSpeed = 1.5 * delta;
       if (data.input.lookUp) {
         data.camera.rotation.x = THREE.MathUtils.clamp(data.camera.rotation.x + lookSpeed, -Math.PI / 2, Math.PI / 2);
@@ -374,40 +368,34 @@ export default function Game({
         data.onGround = false;
       }
       
-      // Gravity
       data.playerVelocity.y -= 20.0 * delta; 
       
       const prevPosition = data.player.position.clone();
       
-      // Update player position based on velocity
       data.player.position.x += data.playerVelocity.x * delta;
       data.player.position.y += data.playerVelocity.y * delta;
       data.player.position.z += data.playerVelocity.z * delta;
 
-      // --- Collision Detection and Resolution ---
       data.onGround = false;
       const playerCollider = new THREE.Box3().setFromObject(data.player);
       const playerHeight = (playerCollider.max.y - playerCollider.min.y);
       
-      // 1. Ground collision
       if (data.player.position.y < playerHeight / 2) {
           data.player.position.y = playerHeight / 2;
           data.playerVelocity.y = 0;
           data.onGround = true;
       }
 
-      // 2. Obstacle collision
       data.obstacles.forEach(obstacle => {
           const obstacleCollider = new THREE.Box3().setFromObject(obstacle);
           const currentCollider = new THREE.Box3().setFromObject(data.player);
 
           if (currentCollider.intersectsBox(obstacleCollider)) {
-               // Check if landing on top
               if (prevPosition.y >= obstacleCollider.max.y && data.playerVelocity.y <= 0) {
                   data.player.position.y = obstacleCollider.max.y + playerHeight / 2;
                   data.playerVelocity.y = 0;
                   data.onGround = true;
-              } else { // Side collision
+              } else { 
                   const penetration = new THREE.Vector3();
                   currentCollider.getCenter(penetration).sub(obstacleCollider.getCenter(new THREE.Vector3()));
           
@@ -436,7 +424,7 @@ export default function Game({
 
       data.zombies.forEach(zombie => {
         const zombieHeight = (zombie.geometry as THREE.BoxGeometry).parameters.height;
-        zombie.position.y = zombieHeight / 2; // Keep zombie on the ground
+        zombie.position.y = zombieHeight / 2;
 
         zombie.lookAt(data.player.position);
         const distance = zombie.position.distanceTo(data.player.position);
@@ -457,7 +445,6 @@ export default function Game({
                 const overlapX = (zombieSize.x + obstacleSize.x) / 2 - Math.abs(penetration.x);
                 const overlapZ = (zombieSize.z + obstacleSize.z) / 2 - Math.abs(penetration.z);
 
-                // Simple sidestep logic
                 if (overlapX < overlapZ) {
                     zombie.position.x += (penetration.x > 0 ? 1 : -1) * 0.1;
                 } else {

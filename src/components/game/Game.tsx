@@ -56,11 +56,7 @@ export default function Game({
 }: GameProps) {
   const mountRef = useRef<HTMLDivElement>(null);
   const gameLoopRef = useRef<number>();
-  const waveRef = useRef(wave);
-  useEffect(() => {
-    waveRef.current = wave;
-  }, [wave]);
-
+  
   const gameData = useRef({
     scene: new THREE.Scene(),
     camera: new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000),
@@ -92,19 +88,14 @@ export default function Game({
     
     lastShotTime: 0,
     lastDamageTime: 0,
-    waveInProgress: false,
   });
 
-  const startNewWave = useCallback(async (newWaveNumber: number) => {
+  const startNewWave = useCallback(async (waveNumber: number) => {
     const { current: data } = gameData;
-    if (data.waveInProgress) return;
-    data.waveInProgress = true;
-    
-    setWave(newWaveNumber);
     
     try {
       const waveData = await generateZombieWave({
-        waveNumber: newWaveNumber,
+        waveNumber: waveNumber,
         difficulty: 'normal',
       });
       
@@ -121,6 +112,18 @@ export default function Game({
         runner: { geometry: new THREE.BoxGeometry(0.8, 1.8, 0.8) },
         brute: { geometry: new THREE.BoxGeometry(1.5, 2.5, 1.5) },
       };
+
+      // Clear old zombies before adding new ones
+      data.zombies.forEach(zombie => {
+        zombie.geometry.dispose();
+        if (Array.isArray(zombie.material)) {
+            zombie.material.forEach(material => material.dispose());
+        } else {
+            zombie.material.dispose();
+        }
+        data.scene.remove(zombie);
+      });
+      data.zombies = [];
 
       waveData.zombies.forEach((zombieData: ZombieData) => {
         const typeInfo = zombieTypes[zombieData.type];
@@ -150,15 +153,8 @@ export default function Game({
         description: "Could not generate next zombie wave. Please try again.",
         variant: "destructive",
       });
-    } finally {
-        setTimeout(() => {
-          if (gameData.current) {
-            gameData.current.waveInProgress = false;
-          }
-        }, 2000);
     }
-
-  }, [setWave, setWaveMessage, toast, setZombiesRemaining]);
+  }, [setWaveMessage, toast, setZombiesRemaining]);
 
   const despawnZombie = useCallback((zombie: Zombie) => {
     const { current: data } = gameData;
@@ -172,15 +168,8 @@ export default function Game({
     data.zombies = data.zombies.filter(z => z !== zombie);
     setScore(s => s + 100);
 
-    setZombiesRemaining(prev => {
-        const newRemaining = prev - 1;
-        if (newRemaining <= 0 && !data.waveInProgress) {
-            startNewWave(waveRef.current + 1);
-        }
-        return newRemaining;
-    });
-
-  }, [setScore, startNewWave, setZombiesRemaining]);
+    setZombiesRemaining(prev => prev - 1);
+  }, [setScore, setZombiesRemaining]);
 
   const applyDamage = useCallback((zombie: Zombie, damage: number) => {
     zombie.health -= damage;
@@ -392,7 +381,7 @@ export default function Game({
     document.addEventListener('mousemove', handleMouseMove);
     window.addEventListener('resize', handleResize);
     
-    startNewWave(1);
+    setWave(1);
 
     const clock = new THREE.Clock();
     const animate = () => {
@@ -575,6 +564,18 @@ export default function Game({
   }, []);
 
   useEffect(() => {
+    if (zombiesRemaining === 0 && wave > 0) {
+      setWave(w => w + 1);
+    }
+  }, [zombiesRemaining, wave, setWave]);
+
+  useEffect(() => {
+    if (wave > 0) {
+      startNewWave(wave);
+    }
+  }, [wave, startNewWave]);
+
+  useEffect(() => {
     const onPointerLockChange = () => {
       if (document.pointerLockElement !== containerRef.current) {
         if (gameState === 'playing') {
@@ -622,5 +623,3 @@ export default function Game({
 
   return <div ref={mountRef} className="absolute inset-0 z-0" />;
 }
-
-    

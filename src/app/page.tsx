@@ -37,7 +37,7 @@ export default function Home() {
 
   const startGame = () => {
     setScore(0);
-    setWave(0);
+    setWave(0); // This will be incremented to 1 by the game component
     setHealth(100);
     setZombiesRemaining(0);
     setGameState('playing');

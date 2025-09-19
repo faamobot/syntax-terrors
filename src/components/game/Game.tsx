@@ -3,24 +3,28 @@
 import React, { useRef, useEffect, useCallback, SetStateAction, Dispatch } from 'react';
 import * as THREE from 'three';
 import { generateZombieWave, ZombieData } from '@/ai/flows/generate-zombie-wave';
-import type { GameState } from '@/app/page';
+import type { GameState, Weapon } from '@/app/page';
 import { useToast } from '@/hooks/use-toast';
 
 type GameProps = {
   gameState: GameState;
   setScore: Dispatch<SetStateAction<number>>;
   setWave: Dispatch<SetStateAction<number>>;
+  wave: number;
+  score: number;
+  health: number;
   setHealth: Dispatch<SetStateAction<number>>;
+  zombiesRemaining: number;
   setZombiesRemaining: Dispatch<SetStateAction<number>>;
   onGameOver: () => void;
   onPause: () => void;
   onTakeDamage: () => void;
   setWaveMessage: Dispatch<SetStateAction<string>>;
   setPlayerMessage: Dispatch<SetStateAction<string>>;
-  wave: number;
-  score: number;
-  health: number;
-  zombiesRemaining: number;
+  specialAmmo: number;
+  setSpecialAmmo: Dispatch<SetStateAction<number>>;
+  currentWeapon: Weapon;
+  setCurrentWeapon: Dispatch<SetStateAction<Weapon>>;
   toast: ReturnType<typeof useToast>['toast'];
   containerRef: React.RefObject<HTMLDivElement>;
 };
@@ -28,7 +32,7 @@ type GameProps = {
 type Zombie = THREE.Group & {
   speed: number;
   health: number;
-  type: 'walker' | 'runner' | 'brute';
+  type: 'walker' | 'runner' | 'brute' | 'clicker';
   originalColor: THREE.Color;
   isZombie: true;
   lastMoanTime: number;
@@ -48,9 +52,14 @@ type HealthCrate = THREE.Mesh & {
 
 const ARENA_SIZE = 100;
 
-function createHumanoidZombie(type: 'walker' | 'runner' | 'brute'): THREE.Group {
+function createHumanoidZombie(type: 'walker' | 'runner' | 'brute' | 'clicker'): THREE.Group {
   const zombieGroup = new THREE.Group();
-  const torsoColor = new THREE.Color(0x0d5223);
+  
+  let torsoColorValue = 0x0d5223;
+  if (type === 'clicker') {
+    torsoColorValue = 0x5e2a2a; // Reddish-brown for Clicker
+  }
+  const torsoColor = new THREE.Color(torsoColorValue);
   const skinColor = new THREE.Color(0x5a6e5a);
 
   const scale = type === 'brute' ? 1.25 : 1;
@@ -103,17 +112,21 @@ export default function Game({
   gameState,
   setScore,
   setWave,
+  wave,
+  score,
+  health,
   setHealth,
+  zombiesRemaining,
   setZombiesRemaining,
   onGameOver,
   onPause,
   onTakeDamage,
   setWaveMessage,
   setPlayerMessage,
-  wave,
-  health,
-  score,
-  zombiesRemaining,
+  specialAmmo,
+  setSpecialAmmo,
+  currentWeapon,
+  setCurrentWeapon,
   toast,
   containerRef,
 }: GameProps) {
@@ -149,6 +162,7 @@ export default function Game({
       lookDown: false,
       lookLeft: false,
       lookRight: false,
+      switchWeapon: false,
     },
     
     playerVelocity: new THREE.Vector3(),
@@ -156,7 +170,7 @@ export default function Game({
     
     lastShotTime: 0,
     lastDamageTime: 0,
-    bulletDamage: 20,
+    baseBulletDamage: 20,
   });
 
   const playSound = useCallback((type: 'shoot' | 'playerDamage' | 'zombieDamage' | 'zombieMoan' | 'powerup' | 'crateLand') => {
@@ -290,7 +304,6 @@ export default function Game({
         difficulty: 'normal',
       });
 
-      setWave(waveNumber);
       setZombiesRemaining(waveData.zombies.length);
       
       if(waveData.messageToPlayer) {
@@ -307,8 +320,8 @@ export default function Game({
         dropHealthCrate(waveNumber - 1);
       }
 
-      if (waveNumber === 4 && data.bulletDamage === 20) {
-        data.bulletDamage = 40;
+      if (waveNumber === 4 && data.baseBulletDamage === 20) {
+        data.baseBulletDamage = 40;
         playSound('powerup');
         setPlayerMessage("BULLETS UPGRADED!");
         setTimeout(() => setPlayerMessage(''), 4000);
@@ -370,7 +383,7 @@ export default function Game({
         variant: "destructive",
       });
     }
-  }, [setWaveMessage, toast, setZombiesRemaining, setWave, dropHealthCrate, setPlayerMessage, playSound]);
+  }, [setWaveMessage, toast, setZombiesRemaining, dropHealthCrate, setPlayerMessage, playSound]);
 
   const despawnZombie = useCallback((zombie: Zombie) => {
     const { current: data } = gameData;
@@ -385,11 +398,18 @@ export default function Game({
 
     data.zombies = data.zombies.filter(z => z !== zombie);
 
-    const bonus = Math.random() < 0.1 ? 500 : 0; // 10% chance for bonus
+    const isClicker = zombie.type === 'clicker';
+    const bonus = isClicker || Math.random() < 0.1 ? 500 : 0; 
+    
     if (bonus > 0) {
       playSound('powerup');
       setPlayerMessage('+500 BONUS!');
       setTimeout(() => setPlayerMessage(''), 1500);
+    }
+    if (isClicker) {
+        setSpecialAmmo(sa => sa + 10);
+        setPlayerMessage("CLICKER KILLED! +10 SPECIAL AMMO");
+        setTimeout(() => setPlayerMessage(''), 2000);
     }
 
     setScore(s => s + 100 + bonus);
@@ -400,7 +420,7 @@ export default function Game({
     if (newRemaining <= 0) {
         setWave(w => w + 1);
     }
-  }, [setScore, setZombiesRemaining, setWave, playSound, setPlayerMessage]);
+  }, [setScore, setZombiesRemaining, setWave, playSound, setPlayerMessage, setSpecialAmmo]);
   
   const applyDamage = useCallback((zombie: Zombie, damage: number) => {
     playSound('zombieDamage');
@@ -430,10 +450,27 @@ export default function Game({
     const { current: data } = gameData;
     const time = performance.now();
     if (time - data.lastShotTime < 200) return;
+
+    let bulletDamage: number;
+    let bulletColor: number;
+
+    if (currentWeapon === 'special') {
+      if (specialAmmo <= 0) {
+        setCurrentWeapon('standard'); // Auto-switch back
+        return; // Don't shoot
+      }
+      bulletDamage = 100;
+      bulletColor = 0xffa500; // Orange for special
+      setSpecialAmmo(sa => sa - 1);
+    } else {
+      bulletDamage = data.baseBulletDamage;
+      bulletColor = 0xffff00;
+    }
+
     data.lastShotTime = time;
     playSound('shoot');
 
-    const bulletMaterial = new THREE.MeshBasicMaterial({ color: 0xffff00 });
+    const bulletMaterial = new THREE.MeshBasicMaterial({ color: bulletColor });
     const bulletGeometry = new THREE.SphereGeometry(0.1, 8, 8);
     const bullet = new THREE.Mesh(bulletGeometry, bulletMaterial) as Bullet;
     
@@ -470,10 +507,10 @@ export default function Game({
       }
 
       if (targetZombie && intersects[0].distance < 100) { 
-          applyDamage(targetZombie, data.bulletDamage);
+          applyDamage(targetZombie, bulletDamage);
       }
     }
-  }, [applyDamage, playSound]);
+  }, [applyDamage, playSound, currentWeapon, specialAmmo, setSpecialAmmo, setCurrentWeapon]);
 
   useEffect(() => {
     if (gameState === 'playing' && !audioContextRef.current) {
@@ -707,6 +744,7 @@ export default function Game({
         case 'KeyF': data.input.shoot = true; break;
         case 'Space': data.input.jump = true; break;
         case 'ShiftLeft': data.input.sprint = true; break;
+        case 'KeyT': data.input.switchWeapon = true; break;
       }
     };
     const handleKeyUp = (e: KeyboardEvent) => {
@@ -722,6 +760,7 @@ export default function Game({
         case 'KeyF': data.input.shoot = false; break;
         case 'Space': data.input.jump = false; break;
         case 'ShiftLeft': data.input.sprint = false; break;
+        case 'KeyT': data.input.switchWeapon = false; break;
       }
     };
     
@@ -781,6 +820,10 @@ export default function Game({
 
       if (data.input.shoot) {
         handleShoot();
+      }
+      if (data.input.switchWeapon) {
+        setCurrentWeapon(w => w === 'standard' ? 'special' : 'standard');
+        data.input.switchWeapon = false; // Consume the input
       }
       if (data.input.jump && data.onGround) {
         data.playerVelocity.y = 12.0; // Jump force

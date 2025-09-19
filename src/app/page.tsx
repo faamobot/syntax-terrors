@@ -10,6 +10,7 @@ import { DamageOverlay } from '@/components/game/DamageOverlay';
 import { useToast } from '@/hooks/use-toast';
 
 export type GameState = 'start' | 'playing' | 'paused' | 'gameover';
+export type Weapon = 'standard' | 'special';
 
 export default function Home() {
   const [gameState, setGameState] = useState<GameState>('start');
@@ -21,6 +22,8 @@ export default function Home() {
   const [wasDamaged, setWasDamaged] = useState(false);
   const [waveMessage, setWaveMessage] = useState('');
   const [playerMessage, setPlayerMessage] = useState('');
+  const [specialAmmo, setSpecialAmmo] = useState(0);
+  const [currentWeapon, setCurrentWeapon] = useState<Weapon>('standard');
   const mainRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
@@ -44,6 +47,8 @@ export default function Home() {
     setGameState('playing');
     setWaveMessage('');
     setPlayerMessage('');
+    setSpecialAmmo(0);
+    setCurrentWeapon('standard');
   };
 
   const pauseGame = useCallback(() => {
@@ -89,6 +94,8 @@ export default function Home() {
           waveMessage={waveMessage}
           playerMessage={playerMessage}
           zombiesRemaining={zombiesRemaining}
+          specialAmmo={specialAmmo}
+          currentWeapon={currentWeapon}
         />
       )}
       
@@ -104,19 +111,23 @@ export default function Home() {
           gameState={gameState}
           setScore={setScore}
           setWave={setWave}
+          wave={wave}
+          score={score}
+          health={health}
           setHealth={setHealth}
+          zombiesRemaining={zombiesRemaining}
           setZombiesRemaining={setZombiesRemaining}
           onGameOver={gameOver}
           onPause={pauseGame}
           onTakeDamage={handleTakeDamage}
           setWaveMessage={setWaveMessage}
           setPlayerMessage={setPlayerMessage}
-          wave={wave}
-          score={score}
-          health={health}
+          specialAmmo={specialAmmo}
+          setSpecialAmmo={setSpecialAmmo}
+          currentWeapon={currentWeapon}
+          setCurrentWeapon={setCurrentWeapon}
           toast={toast}
           containerRef={mainRef}
-          zombiesRemaining={zombiesRemaining}
         />
       )}
     </main>

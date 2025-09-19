@@ -1,9 +1,10 @@
-"use client";
+'use client';
 
-import { Heart, Target, Waves, Users } from 'lucide-react';
+import { Heart, Target, Waves, Users, Zap, ChevronsRight } from 'lucide-react';
 import { cn } from "@/lib/utils";
 import * as ProgressPrimitive from "@radix-ui/react-progress";
 import React from 'react';
+import type { Weapon } from '@/app/page';
 
 // Custom Progress component that accepts an indicatorClassName
 const CustomProgress = React.forwardRef<
@@ -34,9 +35,11 @@ type HUDProps = {
   waveMessage: string;
   playerMessage: string;
   zombiesRemaining: number;
+  specialAmmo: number;
+  currentWeapon: Weapon;
 };
 
-export function HUD({ health, score, wave, waveMessage, playerMessage, zombiesRemaining }: HUDProps) {
+export function HUD({ health, score, wave, waveMessage, playerMessage, zombiesRemaining, specialAmmo, currentWeapon }: HUDProps) {
   return (
     <div className="pointer-events-none fixed inset-0 z-10 p-4 lg:p-8 text-primary-foreground font-mono">
       {/* Top Left: Score & Wave */}
@@ -54,6 +57,20 @@ export function HUD({ health, score, wave, waveMessage, playerMessage, zombiesRe
           <span className="text-2xl font-bold">REMAINING: {zombiesRemaining}</span>
         </div>
       </div>
+
+      {/* Top Right: Ammo */}
+      <div className="absolute top-4 right-4 lg:top-8 lg:right-8 flex flex-col gap-4 items-end">
+        <div className="flex items-center gap-2 bg-black/30 p-2 rounded-md">
+            <ChevronsRight className={cn("h-6 w-6 transition-colors", currentWeapon === 'standard' ? 'text-accent' : 'text-primary-foreground/30')} />
+            <span className={cn("text-xl font-bold transition-colors", currentWeapon === 'standard' ? 'text-primary-foreground' : 'text-primary-foreground/30')}>STANDARD</span>
+        </div>
+        <div className="flex items-center gap-2 bg-black/30 p-2 rounded-md">
+            <Zap className={cn("h-6 w-6 transition-colors", currentWeapon === 'special' ? 'text-yellow-400' : 'text-primary-foreground/30')} />
+            <span className={cn("text-xl font-bold transition-colors", currentWeapon === 'special' ? 'text-yellow-400' : 'text-primary-foreground/30')}>SPECIAL: {specialAmmo}</span>
+        </div>
+        <div className="text-xs bg-black/30 p-1 rounded-md">PRESS 'T' TO SWITCH</div>
+      </div>
+
 
       {/* Bottom Left: Health */}
       <div className="absolute bottom-4 left-4 lg:bottom-8 lg:left-8 w-64">

@@ -18,7 +18,7 @@ const GenerateZombieWaveInputSchema = z.object({
 export type GenerateZombieWaveInput = z.infer<typeof GenerateZombieWaveInputSchema>;
 
 const ZombieSchema = z.object({
-    type: z.enum(['walker', 'runner', 'brute']),
+    type: z.enum(['walker', 'runner', 'brute', 'clicker']),
     health: z.number(),
     speed: z.number(),
 });
@@ -30,7 +30,12 @@ const GenerateZombieWaveOutputSchema = z.object({
 });
 export type GenerateZombieWaveOutput = z.infer<typeof GenerateZombieWaveOutputSchema>;
 
-function pickType(i: number): 'walker' | 'runner' | 'brute' {
+function pickType(i: number, waveNumber: number): 'walker' | 'runner' | 'brute' | 'clicker' {
+    if (waveNumber >= 3) {
+      const clickerCheck = i % 8;
+      if (clickerCheck === 0) return "clicker";
+    }
+
     const typeIndex = i % 10; // Creates a repeating pattern
     if (typeIndex < 6) return "walker"; // 60% walkers
     if (typeIndex < 9) return "runner"; // 30% runners
@@ -52,8 +57,8 @@ export async function generateZombieWave(input: GenerateZombieWaveInput): Promis
   
   const zombies = [];
   for (let i = 0; i < count; i++) {
-    const type = pickType(i);
-    const speedBase = { walker: 0.02, runner: 0.04, brute: 0.01 }[type];
+    const type = pickType(i, waveNumber);
+    const speedBase = { walker: 0.02, runner: 0.04, brute: 0.01, clicker: 0.06 }[type];
     const speedVariation = ((i % 5) / 5) * 0.15; // Deterministic variation
 
     zombies.push({

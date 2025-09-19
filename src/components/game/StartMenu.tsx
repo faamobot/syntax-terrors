@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -33,8 +33,9 @@ export function StartMenu({ onStart, highScore }: StartMenuProps) {
           <CardDescription className="text-lg">A hackathon 3D shooter.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-            <div className="text-muted-foreground">
-                <p>WASD/Arrows to Move | Shift to Sprint | Mouse to Aim | F to Shoot</p>
+            <div className="text-muted-foreground text-sm">
+                <p>WASD/Arrows to Move | Shift to Sprint | Mouse to Aim</p>
+                <p>F to Shoot | T to Switch Ammo</p>
             </div>
             <Button onClick={onStart} size="lg" className="w-full text-lg py-6">
                 Start Game

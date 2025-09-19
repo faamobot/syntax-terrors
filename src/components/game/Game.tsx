@@ -452,14 +452,14 @@ export default function Game({
     const fireRate = currentWeapon === 'special' ? 400 : 200;
     if (time - data.lastShotTime < fireRate) return;
     data.lastShotTime = time;
-
+    
     let bulletColor: number;
     let bulletDamage: number;
 
     if (currentWeapon === 'special') {
       if (specialAmmo <= 0) {
         setCurrentWeapon('standard');
-        return; // Switch to standard if out of special ammo
+        return;
       }
       bulletColor = 0x00ff00; // Green for special
       bulletDamage = 25;
@@ -481,7 +481,6 @@ export default function Game({
       let hitObject = intersects[0].object;
       let targetZombie: Zombie | null = null;
       
-      // Traverse up the hierarchy to find the parent Zombie object
       let current: THREE.Object3D | null = hitObject;
       while (current) {
         if ((current as any).isZombie) {
@@ -496,7 +495,7 @@ export default function Game({
       }
     }
 
-    // Step 2: Create the visual bullet effect regardless of hit
+    // Step 2: Create the visual bullet effect
     const bulletMaterial = new THREE.MeshBasicMaterial({ color: bulletColor });
     const bulletGeometry = new THREE.SphereGeometry(0.1, 8, 8);
     const bullet = new THREE.Mesh(bulletGeometry, bulletMaterial) as Bullet;
@@ -505,7 +504,7 @@ export default function Game({
     data.camera.getWorldDirection(bulletVelocityVector);
 
     bullet.position.copy(data.player.position).add(bulletVelocityVector.clone().multiplyScalar(0.8));
-    bullet.position.y += 1.5;
+    bullet.position.y += 1.5; // Adjust to roughly camera height
 
     bullet.velocity = bulletVelocityVector.clone().multiplyScalar(150);
     bullet.spawnTime = time;
@@ -800,6 +799,7 @@ export default function Game({
       const delta = clock.getDelta();
       const time = performance.now();
       
+      // Camera Look (Arrow keys)
       const cameraSpeed = 1.5 * delta;
       if (data.input.lookUp) data.camera.rotation.x += cameraSpeed;
       if (data.input.lookDown) data.camera.rotation.x -= cameraSpeed;
@@ -807,10 +807,10 @@ export default function Game({
       if (data.input.lookRight) data.player.rotation.y -= cameraSpeed;
       data.camera.rotation.x = THREE.MathUtils.clamp(data.camera.rotation.x, -Math.PI / 2, Math.PI / 2);
 
+      // Player Movement (WASD)
       const baseSpeed = 8.0;
       const sprintSpeed = 12.0;
       const currentSpeed = data.input.sprint ? sprintSpeed : baseSpeed;
-
       const moveDirection = new THREE.Vector3();
       if (data.input.forward) moveDirection.z -= 1;
       if (data.input.backward) moveDirection.z += 1;
@@ -826,7 +826,8 @@ export default function Game({
         data.playerVelocity.x *= 0.9;
         data.playerVelocity.z *= 0.9;
       }
-
+      
+      // Actions
       if (data.input.shoot) {
         handleShoot();
       }
@@ -845,11 +846,13 @@ export default function Game({
         data.onGround = false;
       }
       
+      // Physics & Collision
       data.playerVelocity.y -= 20.0 * delta; 
       
       const playerCollider = new THREE.Box3().setFromObject(data.player);
       const playerHeight = (playerCollider.max.y - playerCollider.min.y);
 
+      // Vertical Collision
       const verticalDelta = data.playerVelocity.y * delta;
       const prevPlayerY = data.player.position.y;
       data.player.position.y += verticalDelta;
@@ -860,17 +863,17 @@ export default function Game({
           const currentCollider = new THREE.Box3().setFromObject(data.player);
 
           if (currentCollider.intersectsBox(obstacleCollider)) {
-            if (data.playerVelocity.y <= 0) {
+            if (data.playerVelocity.y <= 0) { // Moving down
               const prevPlayerBottom = prevPlayerY - playerHeight / 2;
-              if (prevPlayerBottom >= obstacleCollider.max.y - 0.1) {
+              if (prevPlayerBottom >= obstacleCollider.max.y - 0.1) { // Check if we were above it before
                  data.player.position.y = obstacleCollider.max.y + playerHeight / 2;
                  data.playerVelocity.y = 0;
                  data.onGround = true;
                  break;
               }
-            } else {
+            } else { // Moving up
                 const prevPlayerTop = prevPlayerY + playerHeight / 2;
-                if(prevPlayerTop <= obstacleCollider.min.y + 0.1) {
+                if(prevPlayerTop <= obstacleCollider.min.y + 0.1) { // Check if we were below it before
                     data.player.position.y = obstacleCollider.min.y - playerHeight / 2;
                     data.playerVelocity.y = 0;
                     break;
@@ -879,15 +882,15 @@ export default function Game({
           }
       };
       
+      // Check floor collision
       if (data.player.position.y < playerHeight / 2) {
           data.player.position.y = playerHeight / 2;
           data.playerVelocity.y = 0;
           data.onGround = true;
       }
 
+      // Horizontal Collision X
       const horizontalDeltaX = data.playerVelocity.x * delta;
-      const horizontalDeltaZ = data.playerVelocity.z * delta;
-      
       data.player.position.x += horizontalDeltaX;
       for (const obstacle of data.obstacles) {
         const obstacleCollider = new THREE.Box3().setFromObject(obstacle);
@@ -899,6 +902,8 @@ export default function Game({
         }
       };
 
+      // Horizontal Collision Z
+      const horizontalDeltaZ = data.playerVelocity.z * delta;
       data.player.position.z += horizontalDeltaZ;
       for (const obstacle of data.obstacles) {
         const obstacleCollider = new THREE.Box3().setFromObject(obstacle);
@@ -910,12 +915,13 @@ export default function Game({
         }
       };
       
-
+      // Boundary check
       const playerRadius = 0.5;
       const halfSize = ARENA_SIZE / 2 - playerRadius;
       data.player.position.x = THREE.MathUtils.clamp(data.player.position.x, -halfSize, halfSize);
       data.player.position.z = THREE.MathUtils.clamp(data.player.position.z, -halfSize, halfSize);
 
+      // Zombie Logic
       data.zombies.forEach(zombie => {
         const zombiePrevPosition = zombie.position.clone();
         
@@ -963,6 +969,7 @@ export default function Game({
         });
       });
       
+      // Bullet Logic
       data.bullets.forEach((bullet, index) => {
         bullet.position.x += bullet.velocity.x * delta;
         bullet.position.y += bullet.velocity.y * delta;
@@ -976,6 +983,7 @@ export default function Game({
         }
       });
 
+      // Health Crate Logic
       if (data.healthCrate) {
           const crate = data.healthCrate;
           const fallDuration = 1000;

@@ -396,7 +396,8 @@ export default function Game({
         }
     });
 
-    data.zombies = data.zombies.filter(z => z !== zombie);
+    const newZombies = data.zombies.filter(z => z !== zombie);
+    data.zombies = newZombies;
 
     const isClicker = zombie.type === 'clicker';
     const bonus = isClicker || Math.random() < 0.1 ? 500 : 0; 
@@ -414,7 +415,7 @@ export default function Game({
 
     setScore(s => s + 100 + bonus);
 
-    const newRemaining = data.zombies.length;
+    const newRemaining = newZombies.length;
     setZombiesRemaining(newRemaining);
 
     if (newRemaining <= 0) {

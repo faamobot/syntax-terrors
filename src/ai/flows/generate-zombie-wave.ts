@@ -31,12 +31,15 @@ const GenerateZombieWaveOutputSchema = z.object({
 export type GenerateZombieWaveOutput = z.infer<typeof GenerateZombieWaveOutputSchema>;
 
 function pickType(i: number, waveNumber: number): 'walker' | 'runner' | 'brute' | 'clicker' {
-    if (waveNumber >= 3) {
-      const clickerCheck = i % 8;
+    if (waveNumber > 3) { // More frequent Clickers after wave 3
+      const clickerCheck = i % 6; // 1 in 6 is a Clicker
+      if (clickerCheck === 0) return "clicker";
+    } else if (waveNumber === 3) { // Clickers introduced in wave 3
+      const clickerCheck = i % 8; // 1 in 8 is a Clicker
       if (clickerCheck === 0) return "clicker";
     }
 
-    const typeIndex = i % 10; // Creates a repeating pattern
+    const typeIndex = i % 10; // Creates a repeating pattern for other zombies
     if (typeIndex < 6) return "walker"; // 60% walkers
     if (typeIndex < 9) return "runner"; // 30% runners
     return "brute"; // 10% brutes

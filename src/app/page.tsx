@@ -34,20 +34,10 @@ export default function Home() {
     const preventContextMenu = (e: MouseEvent) => e.preventDefault();
     document.addEventListener('contextmenu', preventContextMenu);
 
-    const handlePointerLockError = () => {
-      toast({
-        title: 'Pointer Lock Failed',
-        description: 'Could not lock the mouse. Please click the screen to enable.',
-        variant: 'destructive',
-      });
-    };
-    document.addEventListener('pointerlockerror', handlePointerLockError);
-
     return () => {
       document.removeEventListener('contextmenu', preventContextMenu);
-      document.removeEventListener('pointerlockerror', handlePointerLockError);
     };
-  }, [toast]);
+  }, []);
 
   const handleTakeDamage = useCallback(() => {
     setWasDamaged(true);
@@ -87,11 +77,6 @@ export default function Home() {
     <main 
       ref={mainRef}
       className="relative w-screen h-screen bg-background text-foreground font-headline overflow-hidden"
-      onClick={() => {
-        if (gameState === 'playing' && document.pointerLockElement !== mainRef.current) {
-          mainRef.current?.requestPointerLock();
-        }
-      }}
     >
       {(gameState === 'playing' || gameState === 'paused') && (
         <HUD 
@@ -130,6 +115,7 @@ export default function Home() {
           wave={wave}
           score={score}
           health={health}
+          toast={toast}
         />
       )}
     </main>

@@ -4,6 +4,7 @@ import React, { useRef, useEffect, useCallback, SetStateAction, Dispatch } from 
 import * as THREE from 'three';
 import { generateZombieWave } from '@/ai/flows/generate-zombie-wave';
 import type { GameState } from '@/app/page';
+import { useToast } from '@/hooks/use-toast';
 
 type GameProps = {
   gameState: GameState;
@@ -22,6 +23,7 @@ type GameProps = {
   wave: number;
   score: number;
   health: number;
+  toast: ReturnType<typeof useToast>['toast'];
 };
 
 type Zombie = THREE.Mesh & {
@@ -46,6 +48,7 @@ export default function Game({
   wave,
   score,
   health,
+  toast,
 }: GameProps) {
   const mountRef = useRef<HTMLDivElement>(null);
   const gameLoopRef = useRef<number>();
@@ -118,17 +121,25 @@ export default function Game({
 
 
   const onPointerLockChange = useCallback(() => {
-    if (document.pointerLockElement !== mountRef.current?.parentElement) {
+    if (document.pointerLockElement !== mountRef.current) {
       if(gameState === 'playing') onPause();
     }
   }, [gameState, onPause]);
+  
+  const onPointerLockError = useCallback(() => {
+      toast({
+        title: 'Pointer Lock Failed',
+        description: 'Could not lock the mouse. Please click the screen to enable.',
+        variant: 'destructive',
+      });
+  }, [toast]);
+
 
   useEffect(() => {
     if (!mountRef.current) return;
 
     const { current: data } = gameData;
     const mount = mountRef.current;
-    const parentElement = mount.parentElement;
     
     data.renderer = new THREE.WebGLRenderer({ antialias: true });
     data.renderer.setSize(window.innerWidth, window.innerHeight);
@@ -206,14 +217,14 @@ export default function Game({
       }
     };
     const handleMouseMove = (e: MouseEvent) => {
-      if (gameState !== 'playing' || document.pointerLockElement !== parentElement) return;
+      if (gameState !== 'playing' || document.pointerLockElement !== mount) return;
       data.player.rotation.y -= e.movementX * 0.002;
       const newPitch = data.camera.rotation.x - e.movementY * 0.002;
       data.camera.rotation.x = THREE.MathUtils.clamp(newPitch, -Math.PI / 2, Math.PI / 2);
     };
 
     const handleMouseDown = (e: MouseEvent) => {
-      if (gameState !== 'playing' || data.input.reloading || ammo <= 0 || document.pointerLockElement !== parentElement) return;
+      if (gameState !== 'playing' || data.input.reloading || ammo <= 0 || document.pointerLockElement !== mount) return;
       
       const time = performance.now();
       if (time - data.lastShotTime < 200) return; // Fire rate
@@ -235,6 +246,12 @@ export default function Game({
         }
       }
     };
+    
+    const handleClick = () => {
+        if (gameState === 'playing' && document.pointerLockElement !== mount) {
+            mount.requestPointerLock();
+        }
+    }
 
     const handleResize = () => {
         data.camera.aspect = window.innerWidth / window.innerHeight;
@@ -243,10 +260,12 @@ export default function Game({
     }
     
     document.addEventListener('pointerlockchange', onPointerLockChange, false);
+    document.addEventListener('pointerlockerror', onPointerLockError, false);
     document.addEventListener('keydown', handleKeyDown);
     document.addEventListener('keyup', handleKeyUp);
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mousedown', handleMouseDown);
+    mount.addEventListener('click', handleClick);
     window.addEventListener('resize', handleResize);
     
     // Initial "wave" to set things up (will spawn 0 zombies)
@@ -332,16 +351,18 @@ export default function Game({
 
     return () => {
       cancelAnimationFrame(gameLoopRef.current || 0);
-      if (mount.contains(data.renderer!.domElement)) {
-        mount.removeChild(data.renderer!.domElement);
+      if (mount && data.renderer && mount.contains(data.renderer.domElement)) {
+        mount.removeChild(data.renderer.domElement);
       }
-      data.renderer!.dispose();
+      data.renderer?.dispose();
 
       document.removeEventListener('pointerlockchange', onPointerLockChange, false);
+      document.removeEventListener('pointerlockerror', onPointerLockError, false);
       document.removeEventListener('keydown', handleKeyDown);
       document.removeEventListener('keyup', handleKeyUp);
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mousedown', handleMouseDown);
+      mount?.removeEventListener('click', handleClick);
       window.removeEventListener('resize', handleResize);
 
       data.zombies.forEach(z => data.scene.remove(z));
@@ -351,10 +372,9 @@ export default function Game({
   }, []);
 
   useEffect(() => {
-    const parentElement = mountRef.current?.parentElement;
-    if (gameState === 'playing' && document.pointerLockElement !== parentElement) {
-      parentElement?.requestPointerLock();
-    } else if (gameState !== 'playing' && document.pointerLockElement === parentElement) {
+    if (gameState === 'playing' && document.pointerLockElement !== mountRef.current) {
+      mountRef.current?.requestPointerLock();
+    } else if (gameState !== 'playing' && document.pointerLockElement === mountRef.current) {
       document.exitPointerLock();
     }
   }, [gameState]);

@@ -378,7 +378,7 @@ export default function Game({
         variant: "destructive",
       });
     }
-  }, [setWaveMessage, toast, setZombiesRemaining, dropHealthCrate, setPlayerMessage, playSound]);
+  }, [setWaveMessage, toast, setZombiesRemaining, dropHealthCrate]);
 
   const despawnZombie = useCallback((zombie: Zombie) => {
     const { current: data } = gameData;
@@ -389,7 +389,11 @@ export default function Game({
         zombie.traverse(child => {
             if (child instanceof THREE.Mesh) {
                 child.geometry.dispose();
-                (child.material as THREE.Material).dispose();
+                if (Array.isArray(child.material)) {
+                    child.material.forEach(m => m.dispose());
+                } else {
+                    (child.material as THREE.Material).dispose();
+                }
             }
         });
     }, 0);
@@ -414,7 +418,6 @@ export default function Game({
 
     setScore(s => s + 100 + bonus);
     
-    // Update state and then check for wave end in a useEffect
     setZombiesRemaining(newZombies.length);
 
   }, [setScore, setZombiesRemaining, playSound, setPlayerMessage, setSpecialAmmo]);
@@ -458,19 +461,18 @@ export default function Game({
     if (currentWeapon === 'special') {
       if (specialAmmo <= 0) {
         setCurrentWeapon('standard');
-        return; // Switch to standard and wait for next input
+        return;
       }
-      bulletColor = 0x00ff00; // Green for special
+      bulletColor = 0x00ff00;
       bulletDamage = 25;
       setSpecialAmmo(sa => sa - 1);
     } else {
-      bulletColor = 0xffff00; // Yellow for standard
+      bulletColor = 0xffff00;
       bulletDamage = data.baseBulletDamage;
     }
 
     playSound('shoot');
 
-    // Visual bullet
     const bulletMaterial = new THREE.MeshBasicMaterial({ color: bulletColor });
     const bulletGeometry = new THREE.SphereGeometry(0.1, 8, 8);
     const bullet = new THREE.Mesh(bulletGeometry, bulletMaterial) as Bullet;
@@ -487,7 +489,6 @@ export default function Game({
     data.scene.add(bullet);
     data.bullets.push(bullet);
 
-    // Use a fresh direction vector for the raycaster
     const raycastDirection = new THREE.Vector3();
     data.camera.getWorldDirection(raycastDirection);
     
@@ -534,7 +535,6 @@ export default function Game({
   }, [wave, gameState, zombiesRemaining, startNewWave]);
 
   useEffect(() => {
-    // This effect runs after a zombie is despawned and zombiesRemaining is updated.
     if (gameState === 'playing' && zombiesRemaining === 0 && wave > 0) {
       const timer = setTimeout(() => {
         setWave(w => {
@@ -542,7 +542,7 @@ export default function Game({
           startNewWave(nextWave);
           return nextWave;
         });
-      }, 3000); // 3-second delay before starting the next wave
+      }, 3000);
       return () => clearTimeout(timer);
     }
   }, [zombiesRemaining, gameState, wave, setWave, startNewWave]);
@@ -556,7 +556,7 @@ export default function Game({
     data.renderer = new THREE.WebGLRenderer({ antialias: true });
     data.renderer.setSize(window.innerWidth, window.innerHeight);
     data.renderer.shadowMap.enabled = true;
-    data.renderer.shadowMap.type = THREE.PCFSoftShadowMap; // Softer shadows
+    data.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     mount.appendChild(data.renderer.domElement);
     
     data.scene.background = new THREE.Color(0x87CEEB);
@@ -564,7 +564,6 @@ export default function Game({
 
     data.camera.position.y = 1.6;
 
-    // Set player's starting position to a safe location
     data.player.position.set(0, 1, 15);
     data.player.castShadow = true;
     data.player.add(data.camera);
@@ -575,20 +574,17 @@ export default function Game({
       const metalMaterial = new THREE.MeshStandardMaterial({ color: 0x222222, metalness: 0.8, roughness: 0.4 });
       const woodMaterial = new THREE.MeshStandardMaterial({ color: 0x8B4513, roughness: 0.6 });
 
-      // Body
       const bodyGeo = new THREE.BoxGeometry(0.1, 0.15, 0.6);
       const body = new THREE.Mesh(bodyGeo, metalMaterial);
       body.position.z = -0.2;
       ak47.add(body);
 
-      // Barrel
       const barrelGeo = new THREE.CylinderGeometry(0.02, 0.02, 0.5, 16);
       const barrel = new THREE.Mesh(barrelGeo, metalMaterial);
       barrel.rotation.x = Math.PI / 2;
       barrel.position.z = -0.75;
       ak47.add(barrel);
 
-      // Stock
       const stockGeo = new THREE.BoxGeometry(0.08, 0.12, 0.4);
       const stock = new THREE.Mesh(stockGeo, woodMaterial);
       stock.position.z = 0.3;
@@ -596,14 +592,12 @@ export default function Game({
       stock.rotation.x = 0.2;
       ak47.add(stock);
 
-      // Handguard
       const handguardGeo = new THREE.BoxGeometry(0.09, 0.08, 0.4);
       const handguard = new THREE.Mesh(handguardGeo, woodMaterial);
       handguard.position.z = -0.4;
       handguard.position.y = 0.02;
       ak47.add(handguard);
 
-      // Magazine
       const magazineGeo = new THREE.BoxGeometry(0.08, 0.3, 0.2);
       const magazine = new THREE.Mesh(magazineGeo, metalMaterial);
       magazine.position.z = -0.15;
@@ -611,7 +605,6 @@ export default function Game({
       magazine.rotation.x = -0.3;
       ak47.add(magazine);
 
-      // Sight
       const sightGeo = new THREE.BoxGeometry(0.02, 0.05, 0.02);
       const frontSight = new THREE.Mesh(sightGeo, metalMaterial);
       frontSight.position.set(0, 0.08, -0.9);
@@ -621,7 +614,7 @@ export default function Game({
       ak47.add(rearSight);
       
       ak47.position.set(0.3, -0.3, -0.8);
-      ak47.rotation.y = -0.1; // Slight angle
+      ak47.rotation.y = -0.1;
       
       return ak47;
     }
@@ -647,7 +640,7 @@ export default function Game({
 
     const floor = new THREE.Mesh(
       new THREE.PlaneGeometry(ARENA_SIZE, ARENA_SIZE),
-      new THREE.MeshStandardMaterial({ color: 0xd2b48c, roughness: 0.9, metalness: 0 }) // Sandy color
+      new THREE.MeshStandardMaterial({ color: 0xd2b48c, roughness: 0.9, metalness: 0 })
     );
     floor.rotation.x = -Math.PI / 2;
     floor.receiveShadow = true;
@@ -691,16 +684,12 @@ export default function Game({
       return obstacle;
     };
     
-    // Central command building
     createObstacle(new THREE.Vector3(0, 2, 0), new THREE.Vector3(12, 4, 15), concreteMaterial);
     
-    // Barracks
     createObstacle(new THREE.Vector3(-30, 1.5, 20), new THREE.Vector3(20, 3, 8), darkWoodMaterial);
     createObstacle(new THREE.Vector3(30, 1.5, -20), new THREE.Vector3(20, 3, 8), darkWoodMaterial, Math.PI / 4);
 
-    // Watchtowers
     const createWatchtower = (position: THREE.Vector3) => {
-        // Legs
         for (let i = 0; i < 4; i++) {
             const legGeo = new THREE.BoxGeometry(0.5, 6, 0.5);
             const leg = new THREE.Mesh(legGeo, darkWoodMaterial);
@@ -710,7 +699,6 @@ export default function Game({
             data.scene.add(leg);
             data.obstacles.push(leg);
         }
-        // Platform
         const platform = new THREE.Mesh(new THREE.BoxGeometry(5, 0.5, 5), darkWoodMaterial);
         platform.position.set(position.x, 6.25, position.z);
         platform.castShadow = true;
@@ -721,7 +709,6 @@ export default function Game({
     createWatchtower(new THREE.Vector3(40, 0, 40));
     createWatchtower(new THREE.Vector3(-40, 0, -40));
 
-    // Jersey barriers for cover
     const barrierGeo = new THREE.BoxGeometry(2, 1.5, 6);
     const barrierMat = concreteMaterial.clone();
     
@@ -744,7 +731,6 @@ export default function Game({
         data.obstacles.push(barrier);
     });
 
-    // Barrels
     const barrelGeo = new THREE.CylinderGeometry(0.5, 0.5, 1, 16);
     const barrelMat = new THREE.MeshStandardMaterial({color: 0x8B4513, roughness: 0.6, metalness: 0.4});
     const barrelPositions = [{x: 10, z: 10}, {x: 10.5, z: 10.5}, {x: 10.2, z: 9.5}, {x: -20, z: 5}, {x: -20.5, z: 4.5}];
@@ -840,8 +826,8 @@ export default function Game({
         data.playerVelocity.x = moveDirection.x * playerSpeed;
         data.playerVelocity.z = moveDirection.z * playerSpeed;
       } else {
-        data.playerVelocity.x *= 0.9; // friction
-        data.playerVelocity.z *= 0.9; // friction
+        data.playerVelocity.x *= 0.9;
+        data.playerVelocity.z *= 0.9;
       }
 
       if (data.input.shoot) {
@@ -849,10 +835,10 @@ export default function Game({
       }
       if (data.input.switchWeapon) {
         setCurrentWeapon(w => w === 'standard' ? 'special' : 'standard');
-        data.input.switchWeapon = false; // Consume the input
+        data.input.switchWeapon = false;
       }
       if (data.input.jump && data.onGround) {
-        data.playerVelocity.y = 12.0; // Jump force
+        data.playerVelocity.y = 12.0;
         data.onGround = false;
       }
       
@@ -861,7 +847,6 @@ export default function Game({
       const playerCollider = new THREE.Box3().setFromObject(data.player);
       const playerHeight = (playerCollider.max.y - playerCollider.min.y);
 
-      // Vertical movement and collision
       const verticalDelta = data.playerVelocity.y * delta;
       const prevPlayerY = data.player.position.y;
       data.player.position.y += verticalDelta;
@@ -872,20 +857,19 @@ export default function Game({
           const currentCollider = new THREE.Box3().setFromObject(data.player);
 
           if (currentCollider.intersectsBox(obstacleCollider)) {
-            // Player is moving downwards
             if (data.playerVelocity.y <= 0) {
               const prevPlayerBottom = prevPlayerY - playerHeight / 2;
-              if (prevPlayerBottom >= obstacleCollider.max.y - 0.1) { // -0.1 tolerance
+              if (prevPlayerBottom >= obstacleCollider.max.y - 0.1) {
                  data.player.position.y = obstacleCollider.max.y + playerHeight / 2;
                  data.playerVelocity.y = 0;
                  data.onGround = true;
                  break;
               }
-            } else { // Player is moving upwards
+            } else {
                 const prevPlayerTop = prevPlayerY + playerHeight / 2;
                 if(prevPlayerTop <= obstacleCollider.min.y + 0.1) {
                     data.player.position.y = obstacleCollider.min.y - playerHeight / 2;
-                    data.playerVelocity.y = 0; // Hit ceiling
+                    data.playerVelocity.y = 0;
                     break;
                 }
             }
@@ -898,7 +882,6 @@ export default function Game({
           data.onGround = true;
       }
 
-      // Horizontal movement and collision
       const horizontalDeltaX = data.playerVelocity.x * delta;
       const horizontalDeltaZ = data.playerVelocity.z * delta;
       
@@ -907,7 +890,7 @@ export default function Game({
         const obstacleCollider = new THREE.Box3().setFromObject(obstacle);
         const currentCollider = new THREE.Box3().setFromObject(data.player);
         if (currentCollider.intersectsBox(obstacleCollider)) {
-          data.player.position.x -= horizontalDeltaX; // Revert X
+          data.player.position.x -= horizontalDeltaX;
           data.playerVelocity.x = 0;
           break;
         }
@@ -918,7 +901,7 @@ export default function Game({
         const obstacleCollider = new THREE.Box3().setFromObject(obstacle);
         const currentCollider = new THREE.Box3().setFromObject(data.player);
         if (currentCollider.intersectsBox(obstacleCollider)) {
-          data.player.position.z -= horizontalDeltaZ; // Revert Z
+          data.player.position.z -= horizontalDeltaZ;
           data.playerVelocity.z = 0;
           break;
         }
@@ -933,16 +916,14 @@ export default function Game({
       data.zombies.forEach(zombie => {
         const zombiePrevPosition = zombie.position.clone();
         
-        // Simple animation
         const bob = Math.sin(time * 0.005 * zombie.speed * 50);
-        zombie.children[2].rotation.x = bob * 0.4; // left arm
-        zombie.children[3].rotation.x = -bob * 0.4; // right arm
-        zombie.children[4].rotation.x = -bob * 0.6; // left leg
-        zombie.children[5].rotation.x = bob * 0.6; // right leg
+        zombie.children[2].rotation.x = bob * 0.4;
+        zombie.children[3].rotation.x = -bob * 0.4;
+        zombie.children[4].rotation.x = -bob * 0.6;
+        zombie.children[5].rotation.x = bob * 0.6;
 
-        // Ambient sound
         const timeSinceMoan = time - zombie.lastMoanTime;
-        if (timeSinceMoan > 5000 + Math.random() * 5000) { // Moan every 5-10 seconds
+        if (timeSinceMoan > 5000 + Math.random() * 5000) {
             playSound('zombieMoan');
             zombie.lastMoanTime = time;
         }
@@ -1002,7 +983,7 @@ export default function Game({
               crate.position.y = crate.initialPosition.y - (crate.initialPosition.y - 0.75) * fallProgress;
           } else if (crate.position.y !== 0.75) {
               crate.position.y = 0.75;
-              if (elapsedTime - fallDuration < 500) { // Play sound shortly after it should have landed
+              if (elapsedTime - fallDuration < 500) {
                   playSound('crateLand');
               }
           }
@@ -1102,5 +1083,3 @@ export default function Game({
 
   return <div ref={mountRef} className="absolute inset-0 z-0" />;
 }
-
-    

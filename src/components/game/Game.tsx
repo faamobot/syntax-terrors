@@ -472,27 +472,30 @@ export default function Game({
     playSound('shoot');
 
     // Step 1: Raycast to see what we hit
-    const raycastDirection = new THREE.Vector3();
-    data.camera.getWorldDirection(raycastDirection);
-    const raycaster = new THREE.Raycaster(data.camera.position, raycastDirection);
+    const raycaster = new THREE.Raycaster();
+    const rayDirection = new THREE.Vector3();
+    data.camera.getWorldDirection(rayDirection);
+    raycaster.set(data.camera.position, rayDirection);
+
     const intersects = raycaster.intersectObjects(data.zombies, true);
 
     if (intersects.length > 0) {
-      let hitObject = intersects[0].object;
-      let targetZombie: Zombie | null = null;
-      
-      let current: THREE.Object3D | null = hitObject;
-      while (current) {
-        if ((current as any).isZombie) {
-          targetZombie = current as Zombie;
-          break;
+        let hitObject = intersects[0].object;
+        let targetZombie: Zombie | null = null;
+        
+        // Traverse up the hierarchy to find the main zombie group
+        let current: THREE.Object3D | null = hitObject;
+        while (current) {
+            if ((current as any).isZombie) {
+            targetZombie = current as Zombie;
+            break;
+            }
+            current = current.parent;
         }
-        current = current.parent;
-      }
 
-      if (targetZombie) {
-        applyDamage(targetZombie, bulletDamage);
-      }
+        if (targetZombie && targetZombie.health > 0) {
+            applyDamage(targetZombie, bulletDamage);
+        }
     }
 
     // Step 2: Create the visual bullet effect
@@ -512,7 +515,7 @@ export default function Game({
     data.scene.add(bullet);
     data.bullets.push(bullet);
 
-  }, [applyDamage, playSound, currentWeapon, specialAmmo, setSpecialAmmo, setCurrentWeapon]);
+  }, [applyDamage, playSound, currentWeapon, specialAmmo, setSpecialAmmo, setCurrentWeapon, gameData.current.baseBulletDamage]);
 
   useEffect(() => {
     if (gameState === 'playing' && !audioContextRef.current) {
@@ -560,7 +563,7 @@ export default function Game({
 
     data.camera.position.y = 1.6;
 
-    data.player.position.set(10, 1, 10);
+    data.player.position.set(0, 1, 20);
     data.player.castShadow = true;
     data.player.add(data.camera);
     data.scene.add(data.player);
@@ -759,12 +762,12 @@ export default function Game({
        switch (e.code) {
         case 'KeyW': data.input.forward = false; break;
         case 'KeyS': data.input.backward = false; break;
-        case 'KeyA': data.input.left = false; break;
-        case 'KeyD': data.input.right = false; break;
-        case 'ArrowUp': data.input.lookUp = false; break;
-        case 'ArrowDown': data.input.lookDown = false; break;
-        case 'ArrowLeft': data.input.lookLeft = false; break;
-        case 'ArrowRight': data.input.lookRight = false; break;
+        case 'KeyA': data.input.left = true; break;
+        case 'KeyD': data.input.right = true; break;
+        case 'ArrowUp': data.input.lookUp = true; break;
+        case 'ArrowDown': data.input.lookDown = true; break;
+        case 'ArrowLeft': data.input.lookLeft = true; break;
+        case 'ArrowRight': data.input.lookRight = true; break;
         case 'KeyF': data.input.shoot = false; break;
         case 'Space': data.input.jump = false; break;
         case 'ShiftLeft': data.input.sprint = false; break;
@@ -812,6 +815,7 @@ export default function Game({
       const sprintSpeed = 12.0;
       const currentSpeed = data.input.sprint ? sprintSpeed : baseSpeed;
       const moveDirection = new THREE.Vector3();
+
       if (data.input.forward) moveDirection.z -= 1;
       if (data.input.backward) moveDirection.z += 1;
       if (data.input.left) moveDirection.x -= 1;
@@ -1094,3 +1098,5 @@ export default function Game({
 
   return <div ref={mountRef} className="absolute inset-0 z-0" />;
 }
+
+    

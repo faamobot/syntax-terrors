@@ -119,22 +119,6 @@ export default function Game({
 
   }, [wave, score, health, setWave, setWaveMessage]);
 
-
-  const onPointerLockChange = useCallback(() => {
-    if (document.pointerLockElement !== mountRef.current) {
-      if(gameState === 'playing') onPause();
-    }
-  }, [gameState, onPause]);
-  
-  const onPointerLockError = useCallback(() => {
-      toast({
-        title: 'Pointer Lock Failed',
-        description: 'Could not lock the mouse. Please click the screen to enable.',
-        variant: 'destructive',
-      });
-  }, [toast]);
-
-
   useEffect(() => {
     if (!mountRef.current) return;
 
@@ -259,8 +243,6 @@ export default function Game({
         data.renderer?.setSize(window.innerWidth, window.innerHeight);
     }
     
-    document.addEventListener('pointerlockchange', onPointerLockChange, false);
-    document.addEventListener('pointerlockerror', onPointerLockError, false);
     document.addEventListener('keydown', handleKeyDown);
     document.addEventListener('keyup', handleKeyUp);
     document.addEventListener('mousemove', handleMouseMove);
@@ -356,8 +338,6 @@ export default function Game({
       }
       data.renderer?.dispose();
 
-      document.removeEventListener('pointerlockchange', onPointerLockChange, false);
-      document.removeEventListener('pointerlockerror', onPointerLockError, false);
       document.removeEventListener('keydown', handleKeyDown);
       document.removeEventListener('keyup', handleKeyUp);
       document.removeEventListener('mousemove', handleMouseMove);
@@ -372,12 +352,40 @@ export default function Game({
   }, []);
 
   useEffect(() => {
-    if (gameState === 'playing' && document.pointerLockElement !== mountRef.current) {
-      mountRef.current?.requestPointerLock();
-    } else if (gameState !== 'playing' && document.pointerLockElement === mountRef.current) {
-      document.exitPointerLock();
+    const onPointerLockChange = () => {
+      if (document.pointerLockElement !== mountRef.current) {
+        if (gameState === 'playing') {
+          onPause();
+        }
+      }
+    };
+
+    const onPointerLockError = () => {
+      toast({
+        title: 'Pointer Lock Failed',
+        description: 'Could not lock the mouse. Please click the screen to enable.',
+        variant: 'destructive',
+      });
+    };
+
+    document.addEventListener('pointerlockchange', onPointerLockChange, false);
+    document.addEventListener('pointerlockerror', onPointerLockError, false);
+
+    if (gameState === 'playing') {
+      if (document.pointerLockElement !== mountRef.current) {
+        mountRef.current?.requestPointerLock();
+      }
+    } else {
+      if (document.pointerLockElement === mountRef.current) {
+        document.exitPointerLock();
+      }
     }
-  }, [gameState]);
+    
+    return () => {
+      document.removeEventListener('pointerlockchange', onPointerLockChange, false);
+      document.removeEventListener('pointerlockerror', onPointerLockError, false);
+    }
+  }, [gameState, onPause, toast]);
   
   useEffect(() => {
     if(health <= 0) {

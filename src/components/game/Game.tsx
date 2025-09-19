@@ -435,11 +435,13 @@ export default function Game({
     });
 
     setTimeout(() => {
-        zombie.traverse(child => {
-            if (child instanceof THREE.Mesh && child.material instanceof THREE.MeshStandardMaterial && (zombie as any).originalColor) {
-                child.material.color.copy((zombie as any).originalColor);
-            }
-        });
+        if(zombie.health > 0) { // Don't revert color if it's dead
+            zombie.traverse(child => {
+                if (child instanceof THREE.Mesh && child.material instanceof THREE.MeshStandardMaterial && (zombie as any).originalColor) {
+                    child.material.color.copy((zombie as any).originalColor);
+                }
+            });
+        }
     }, 150);
 
     if (zombie.health <= 0) {
@@ -476,13 +478,16 @@ export default function Game({
     // Step 1: Raycast to see what we hit
     const raycaster = new THREE.Raycaster();
     const rayDirection = new THREE.Vector3();
+    const rayOrigin = data.camera.getWorldPosition(new THREE.Vector3());
     data.camera.getWorldDirection(rayDirection);
-    raycaster.set(data.camera.position, rayDirection);
+    raycaster.set(rayOrigin, rayDirection);
   
     const intersects = raycaster.intersectObjects(data.scene.children, true);
   
+    let hitZombie = false;
     if (intersects.length > 0) {
       for (const intersect of intersects) {
+        if (hitZombie) break; // only process the first hit
         let hitObject = intersect.object;
         let targetZombie: Zombie | null = null;
     
@@ -498,7 +503,7 @@ export default function Game({
     
         if (targetZombie) {
           applyDamage(targetZombie, bulletDamage);
-          break; // only hit the first zombie
+          hitZombie = true; 
         }
       }
     }
@@ -511,9 +516,8 @@ export default function Game({
     const bulletVelocityVector = new THREE.Vector3();
     data.camera.getWorldDirection(bulletVelocityVector);
   
-    bullet.position.copy(data.player.position).add(bulletVelocityVector.clone().multiplyScalar(0.8));
-    bullet.position.y += 1.5; // Adjust to roughly camera height
-  
+    bullet.position.copy(rayOrigin).add(bulletVelocityVector.clone().multiplyScalar(0.8));
+    
     bullet.velocity = bulletVelocityVector.multiplyScalar(150);
     bullet.spawnTime = time;
   

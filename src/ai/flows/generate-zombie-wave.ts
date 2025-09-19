@@ -68,7 +68,7 @@ const generateZombieWaveFlow = ai.defineFlow(
     outputSchema: GenerateZombieWaveOutputSchema,
   },
   async input => {
-    // If wave number is 0, return a specific hardcoded response.
+    // If wave number is 0, return a specific hardcoded response to avoid unnecessary API calls.
     if (input.waveNumber === 0) {
       return {
         zombieCount: 0,

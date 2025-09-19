@@ -263,10 +263,22 @@ export default function Game({
 
     const handleKeyDown = (e: KeyboardEvent) => {
       switch (e.code) {
-        case 'KeyW': data.input.forward = true; break;
-        case 'KeyS': data.input.backward = true; break;
-        case 'KeyA': data.input.left = true; break;
-        case 'KeyD': data.input.right = true; break;
+        case 'KeyW':
+        case 'ArrowUp':
+          data.input.forward = true;
+          break;
+        case 'KeyS':
+        case 'ArrowDown':
+          data.input.backward = true;
+          break;
+        case 'KeyA':
+        case 'ArrowLeft':
+          data.input.left = true;
+          break;
+        case 'KeyD':
+        case 'ArrowRight':
+          data.input.right = true;
+          break;
         case 'KeyF': data.input.shoot = true; break;
         case 'Space': data.input.jump = true; break;
         case 'ShiftLeft': data.input.sprint = true; break;
@@ -274,10 +286,22 @@ export default function Game({
     };
     const handleKeyUp = (e: KeyboardEvent) => {
        switch (e.code) {
-        case 'KeyW': data.input.forward = false; break;
-        case 'KeyS': data.input.backward = false; break;
-        case 'KeyA': data.input.left = false; break;
-        case 'KeyD': data.input.right = false; break;
+        case 'KeyW':
+        case 'ArrowUp':
+          data.input.forward = false;
+          break;
+        case 'KeyS':
+        case 'ArrowDown':
+          data.input.backward = false;
+          break;
+        case 'KeyA':
+        case 'ArrowLeft':
+          data.input.left = false;
+          break;
+        case 'KeyD':
+        case 'ArrowRight':
+          data.input.right = false;
+          break;
         case 'KeyF': data.input.shoot = false; break;
         case 'Space': data.input.jump = false; break;
         case 'ShiftLeft': data.input.sprint = false; break;

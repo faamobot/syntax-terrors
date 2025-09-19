@@ -100,9 +100,9 @@ export default function Game({
       }
       
       const zombieTypes = {
-        walker: { color: new THREE.Color(0x0d5223), geometry: new THREE.BoxGeometry(1, 2, 1) },
-        runner: { color: new THREE.Color(0x1a8c3e), geometry: new THREE.BoxGeometry(0.8, 1.8, 0.8) },
-        brute: { color: new THREE.Color(0x073b17), geometry: new THREE.BoxGeometry(1.5, 2.5, 1.5) },
+        walker: { color: new THREE.Color(0x556B2F), geometry: new THREE.BoxGeometry(1, 2, 1) },
+        runner: { color: new THREE.Color(0x8B4513), geometry: new THREE.BoxGeometry(0.8, 1.8, 0.8) },
+        brute: { color: new THREE.Color(0x6B8E23), geometry: new THREE.BoxGeometry(1.5, 2.5, 1.5) },
       };
 
       waveData.zombies.forEach((zombieData: ZombieData) => {
@@ -330,7 +330,7 @@ export default function Game({
 
       const delta = clock.getDelta();
       
-      const speed = 6.0;
+      const speed = 7.0;
       const moveDirection = new THREE.Vector3();
       if (data.input.forward) moveDirection.z -= 1;
       if (data.input.backward) moveDirection.z += 1;
@@ -433,7 +433,7 @@ export default function Game({
         zombie.lookAt(data.player.position);
         const distance = zombie.position.distanceTo(data.player.position);
         if (distance > 1.5) {
-            zombie.translateZ(zombie.speed * delta * 20); // Scale speed by delta and a multiplier
+            zombie.translateZ(zombie.speed);
         } else {
             const time = performance.now();
             if (time - data.lastDamageTime > 1000) { 

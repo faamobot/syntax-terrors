@@ -305,9 +305,9 @@ export default function Game({
     setZombiesRemaining(newRemaining);
 
     if (newRemaining <= 0) {
-        startNewWave(waveRef.current + 1);
+        setWave(w => w + 1);
     }
-  }, [setScore, setZombiesRemaining, startNewWave]);
+  }, [setScore, setZombiesRemaining, setWave]);
   
   const applyDamage = useCallback((zombie: Zombie, damage: number) => {
     playSound('zombieDamage');
@@ -696,16 +696,14 @@ export default function Game({
       
       data.playerVelocity.y -= 20.0 * delta; 
       
-      const prevPosition = data.player.position.clone();
-      
-      data.player.position.x += data.playerVelocity.x * delta;
-      data.player.position.y += data.playerVelocity.y * delta;
-      data.player.position.z += data.playerVelocity.z * delta;
-
-      data.onGround = false;
+      // Separate axis collision detection
       const playerCollider = new THREE.Box3().setFromObject(data.player);
       const playerHeight = (playerCollider.max.y - playerCollider.min.y);
-      
+
+      // Vertical collision
+      data.player.position.y += data.playerVelocity.y * delta;
+      data.onGround = false;
+
       if (data.player.position.y < playerHeight / 2) {
           data.player.position.y = playerHeight / 2;
           data.playerVelocity.y = 0;
@@ -717,33 +715,44 @@ export default function Game({
           const currentCollider = new THREE.Box3().setFromObject(data.player);
 
           if (currentCollider.intersectsBox(obstacleCollider)) {
-            const wasOnTop = prevPosition.y >= obstacleCollider.max.y;
-
-            if (data.playerVelocity.y <= 0 && wasOnTop && currentCollider.min.y < obstacleCollider.max.y) {
+            const penetration = new THREE.Vector3();
+            currentCollider.getCenter(penetration).sub(obstacleCollider.getCenter(new THREE.Vector3()));
+            
+            // Check vertical collision (landing on top)
+            if (data.playerVelocity.y <= 0 && penetration.y > 0 && Math.abs(penetration.y) > Math.abs(penetration.x) && Math.abs(penetration.y) > Math.abs(penetration.z)) {
               data.player.position.y = obstacleCollider.max.y + playerHeight / 2;
               data.playerVelocity.y = 0;
               data.onGround = true;
-            } else if (!wasOnTop) {
-              const penetration = new THREE.Vector3();
-              currentCollider.getCenter(penetration).sub(obstacleCollider.getCenter(new THREE.Vector3()));
-      
-              const playerSize = currentCollider.getSize(new THREE.Vector3());
-              const obstacleSize = obstacleCollider.getSize(new THREE.Vector3());
-      
-              const overlapX = (playerSize.x + obstacleSize.x) / 2 - Math.abs(penetration.x);
-              const overlapZ = (playerSize.z + obstacleSize.z) / 2 - Math.abs(penetration.z);
-
-              if (overlapX < overlapZ) {
-                  data.player.position.x += penetration.x > 0 ? overlapX : -overlapX;
-                  data.playerVelocity.x = 0;
-              } else {
-                  data.player.position.z += penetration.z > 0 ? overlapZ : -overlapZ;
-                  data.playerVelocity.z = 0;
-              }
             }
           }
       });
+      
+      // Horizontal collision
+      data.player.position.x += data.playerVelocity.x * delta;
+      data.player.position.z += data.playerVelocity.z * delta;
 
+      data.obstacles.forEach(obstacle => {
+        const obstacleCollider = new THREE.Box3().setFromObject(obstacle);
+        const currentCollider = new THREE.Box3().setFromObject(data.player);
+        if (currentCollider.intersectsBox(obstacleCollider)) {
+            const penetration = new THREE.Vector3();
+            currentCollider.getCenter(penetration).sub(obstacleCollider.getCenter(new THREE.Vector3()));
+
+            const playerSize = currentCollider.getSize(new THREE.Vector3());
+            const obstacleSize = obstacleCollider.getSize(new THREE.Vector3());
+
+            const overlapX = (playerSize.x + obstacleSize.x) / 2 - Math.abs(penetration.x);
+            const overlapZ = (playerSize.z + obstacleSize.z) / 2 - Math.abs(penetration.z);
+
+            if (overlapX < overlapZ) {
+                data.player.position.x += penetration.x > 0 ? overlapX : -overlapX;
+                data.playerVelocity.x = 0;
+            } else {
+                data.player.position.z += penetration.z > 0 ? overlapZ : -overlapZ;
+                data.playerVelocity.z = 0;
+            }
+        }
+    });
 
       const playerRadius = 0.5;
       const halfSize = ARENA_SIZE / 2 - playerRadius;

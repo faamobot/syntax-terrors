@@ -74,6 +74,10 @@ export default function Game({
       left: false,
       right: false,
       reloading: false,
+      arrowUp: false,
+      arrowDown: false,
+      arrowLeft: false,
+      arrowRight: false,
     },
     
     playerVelocity: new THREE.Vector3(),
@@ -215,6 +219,10 @@ export default function Game({
         case 'KeyS': data.input.backward = true; break;
         case 'KeyA': data.input.left = true; break;
         case 'KeyD': data.input.right = true; break;
+        case 'ArrowUp': data.input.arrowUp = true; break;
+        case 'ArrowDown': data.input.arrowDown = true; break;
+        case 'ArrowLeft': data.input.arrowLeft = true; break;
+        case 'ArrowRight': data.input.arrowRight = true; break;
         case 'KeyR': 
           if (!data.input.reloading && totalAmmo > 0) {
             data.input.reloading = true;
@@ -237,6 +245,10 @@ export default function Game({
         case 'KeyS': data.input.backward = false; break;
         case 'KeyA': data.input.left = false; break;
         case 'KeyD': data.input.right = false; break;
+        case 'ArrowUp': data.input.arrowUp = false; break;
+        case 'ArrowDown': data.input.arrowDown = false; break;
+        case 'ArrowLeft': data.input.arrowLeft = false; break;
+        case 'ArrowRight': data.input.arrowRight = false; break;
       }
     };
     const handleMouseMove = (e: MouseEvent) => {
@@ -327,6 +339,19 @@ export default function Game({
         data.playerVelocity.add(moveDirection.multiplyScalar(speed * delta));
       }
       
+      // Arrow key camera controls
+      const rotationSpeed = 1.5 * delta;
+      if (data.input.arrowLeft) data.player.rotation.y += rotationSpeed;
+      if (data.input.arrowRight) data.player.rotation.y -= rotationSpeed;
+      if (data.input.arrowUp) {
+        const newPitch = data.camera.rotation.x + rotationSpeed;
+        data.camera.rotation.x = THREE.MathUtils.clamp(newPitch, -Math.PI / 2, Math.PI / 2);
+      }
+      if (data.input.arrowDown) {
+        const newPitch = data.camera.rotation.x - rotationSpeed;
+        data.camera.rotation.x = THREE.MathUtils.clamp(newPitch, -Math.PI / 2, Math.PI / 2);
+      }
+
       data.player.position.add(data.playerVelocity);
       data.playerVelocity.multiplyScalar(1 - 10 * delta); // friction
 

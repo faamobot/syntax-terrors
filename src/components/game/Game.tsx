@@ -16,6 +16,7 @@ type GameProps = {
   onPause: () => void;
   onTakeDamage: () => void;
   setWaveMessage: Dispatch<SetStateAction<string>>;
+  setPlayerMessage: Dispatch<SetStateAction<string>>;
   wave: number;
   score: number;
   health: number;
@@ -35,6 +36,13 @@ type Zombie = THREE.Group & {
 
 type Bullet = THREE.Mesh & {
   velocity: THREE.Vector3;
+  spawnTime: number;
+};
+
+type HealthCrate = THREE.Mesh & {
+  isHealthCrate: true;
+  healthValue: number;
+  initialPosition: THREE.Vector3;
   spawnTime: number;
 };
 
@@ -101,6 +109,7 @@ export default function Game({
   onPause,
   onTakeDamage,
   setWaveMessage,
+  setPlayerMessage,
   wave,
   health,
   score,
@@ -126,7 +135,8 @@ export default function Game({
     zombies: [] as Zombie[],
     obstacles: [] as THREE.Mesh[],
     bullets: [] as Bullet[],
-    
+    healthCrate: null as HealthCrate | null,
+
     input: {
       forward: false,
       backward: false,
@@ -146,9 +156,10 @@ export default function Game({
     
     lastShotTime: 0,
     lastDamageTime: 0,
+    bulletDamage: 20,
   });
 
-  const playSound = useCallback((type: 'shoot' | 'playerDamage' | 'zombieDamage' | 'zombieMoan') => {
+  const playSound = useCallback((type: 'shoot' | 'playerDamage' | 'zombieDamage' | 'zombieMoan' | 'powerup' | 'crateLand') => {
     if (!audioContextRef.current) return;
     const ctx = audioContextRef.current;
     const now = ctx.currentTime;
@@ -204,7 +215,70 @@ export default function Game({
         gainNode.gain.linearRampToValueAtTime(0, now + 1.5);
         oscillator.start(now);
         oscillator.stop(now + 1.5);
+    } else if (type === 'powerup') {
+        const oscillator = ctx.createOscillator();
+        const gainNode = ctx.createGain();
+        oscillator.connect(gainNode);
+        gainNode.connect(ctx.destination);
+        oscillator.type = 'triangle';
+        oscillator.frequency.setValueAtTime(440, now);
+        gainNode.gain.setValueAtTime(0.4, now);
+        oscillator.frequency.exponentialRampToValueAtTime(880, now + 0.2);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+        oscillator.start(now);
+        oscillator.stop(now + 0.3);
+    } else if (type === 'crateLand') {
+        const noise = ctx.createBufferSource();
+        const buffer = ctx.createBuffer(1, ctx.sampleRate * 0.5, ctx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < data.length; i++) {
+            data[i] = Math.random() * 2 - 1;
+        }
+        noise.buffer = buffer;
+        const gainNode = ctx.createGain();
+        gainNode.gain.setValueAtTime(0.5, now);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.4);
+        noise.connect(gainNode);
+        gainNode.connect(ctx.destination);
+        noise.start(now);
+        noise.stop(now + 0.5);
     }
+  }, []);
+
+  const dropHealthCrate = useCallback((waveNumber: number) => {
+    const { current: data } = gameData;
+    if (data.healthCrate) {
+        data.scene.remove(data.healthCrate);
+    }
+
+    const crateGeo = new THREE.BoxGeometry(1.5, 1.5, 1.5);
+    const crateMat = new THREE.MeshStandardMaterial({ color: 0xeeeeee });
+    const crate = new THREE.Mesh(crateGeo, crateMat) as HealthCrate;
+    
+    // Add a red cross
+    const crossGeo = new THREE.BoxGeometry(1, 0.4, 0.2);
+    const crossMat = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+    const cross1 = new THREE.Mesh(crossGeo, crossMat);
+    cross1.position.z = 0.76;
+    const cross2 = new THREE.Mesh(crossGeo, crossMat);
+    cross2.rotation.z = Math.PI / 2;
+    cross2.position.z = 0.76;
+    crate.add(cross1, cross2);
+
+    const spawnY = 20;
+    const spawnX = (Math.random() - 0.5) * (ARENA_SIZE * 0.6);
+    const spawnZ = (Math.random() - 0.5) * (ARENA_SIZE * 0.6);
+
+    crate.position.set(spawnX, spawnY, spawnZ);
+    crate.castShadow = true;
+
+    crate.isHealthCrate = true;
+    crate.healthValue = 5 + waveNumber; // Scales with wave number
+    crate.spawnTime = performance.now();
+    crate.initialPosition = crate.position.clone();
+    
+    data.healthCrate = crate;
+    data.scene.add(crate);
   }, []);
 
   const startNewWave = useCallback(async (waveNumber: number) => {
@@ -228,6 +302,17 @@ export default function Game({
         data.scene.remove(zombie);
       });
       data.zombies = [];
+      
+      if (waveNumber > 1) {
+        dropHealthCrate(waveNumber - 1);
+      }
+
+      if (waveNumber === 4 && data.bulletDamage === 20) {
+        data.bulletDamage = 40;
+        playSound('powerup');
+        setPlayerMessage("BULLETS UPGRADED!");
+        setTimeout(() => setPlayerMessage(''), 4000);
+      }
       
       const isPositionValid = (position: THREE.Vector3) => {
         const tempZombieBox = new THREE.Box3(
@@ -285,7 +370,7 @@ export default function Game({
         variant: "destructive",
       });
     }
-  }, [setWaveMessage, toast, setZombiesRemaining, setWave]);
+  }, [setWaveMessage, toast, setZombiesRemaining, setWave, dropHealthCrate, setPlayerMessage, playSound]);
 
   const despawnZombie = useCallback((zombie: Zombie) => {
     const { current: data } = gameData;
@@ -299,7 +384,15 @@ export default function Game({
     });
 
     data.zombies = data.zombies.filter(z => z !== zombie);
-    setScore(s => s + 100);
+
+    const bonus = Math.random() < 0.1 ? 500 : 0; // 10% chance for bonus
+    if (bonus > 0) {
+      playSound('powerup');
+      setPlayerMessage('+500 BONUS!');
+      setTimeout(() => setPlayerMessage(''), 1500);
+    }
+
+    setScore(s => s + 100 + bonus);
 
     const newRemaining = data.zombies.length;
     setZombiesRemaining(newRemaining);
@@ -307,7 +400,7 @@ export default function Game({
     if (newRemaining <= 0) {
         setWave(w => w + 1);
     }
-  }, [setScore, setZombiesRemaining, setWave]);
+  }, [setScore, setZombiesRemaining, setWave, playSound, setPlayerMessage]);
   
   const applyDamage = useCallback((zombie: Zombie, damage: number) => {
     playSound('zombieDamage');
@@ -377,7 +470,7 @@ export default function Game({
       }
 
       if (targetZombie && intersects[0].distance < 100) { 
-          applyDamage(targetZombie, 20);
+          applyDamage(targetZombie, data.bulletDamage);
       }
     }
   }, [applyDamage, playSound]);
@@ -752,7 +845,7 @@ export default function Game({
                 data.playerVelocity.z = 0;
             }
         }
-    });
+      });
 
       const playerRadius = 0.5;
       const halfSize = ARENA_SIZE / 2 - playerRadius;
@@ -820,6 +913,33 @@ export default function Game({
             data.bullets.splice(index, 1);
         }
       });
+
+      if (data.healthCrate) {
+          const crate = data.healthCrate;
+          const fallDuration = 1000;
+          const elapsedTime = time - crate.spawnTime;
+          
+          if (elapsedTime < fallDuration) {
+              const fallProgress = elapsedTime / fallDuration;
+              crate.position.y = crate.initialPosition.y - (crate.initialPosition.y - 0.75) * fallProgress;
+          } else if (crate.position.y !== 0.75) {
+              crate.position.y = 0.75;
+              if (elapsedTime - fallDuration < 500) { // Play sound shortly after it should have landed
+                  playSound('crateLand');
+              }
+          }
+
+          const crateCollider = new THREE.Box3().setFromObject(crate);
+          if (crateCollider.intersectsBox(new THREE.Box3().setFromObject(data.player))) {
+              playSound('powerup');
+              setHealth(h => Math.min(100, h + crate.healthValue));
+              setPlayerMessage(`+${crate.healthValue} HP`);
+              setTimeout(() => setPlayerMessage(''), 1500);
+
+              data.scene.remove(crate);
+              data.healthCrate = null;
+          }
+      }
 
       data.renderer.render(data.scene, data.camera);
     };

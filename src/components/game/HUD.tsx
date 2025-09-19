@@ -32,10 +32,11 @@ type HUDProps = {
   score: number;
   wave: number;
   waveMessage: string;
+  playerMessage: string;
   zombiesRemaining: number;
 };
 
-export function HUD({ health, score, wave, waveMessage, zombiesRemaining }: HUDProps) {
+export function HUD({ health, score, wave, waveMessage, playerMessage, zombiesRemaining }: HUDProps) {
   return (
     <div className="pointer-events-none fixed inset-0 z-10 p-4 lg:p-8 text-primary-foreground font-mono">
       {/* Top Left: Score & Wave */}
@@ -70,6 +71,15 @@ export function HUD({ health, score, wave, waveMessage, zombiesRemaining }: HUDP
         <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-full max-w-2xl text-center">
             <p className="text-3xl lg:text-5xl font-bold text-accent animate-pulse">
                 {waveMessage}
+            </p>
+        </div>
+      )}
+
+      {/* Center Bottom: Player Message */}
+      {playerMessage && (
+        <div className="absolute bottom-1/4 left-1/2 -translate-x-1/2 w-full max-w-2xl text-center">
+            <p className="text-2xl lg:text-4xl font-bold text-yellow-400 animate-pulse">
+                {playerMessage}
             </p>
         </div>
       )}

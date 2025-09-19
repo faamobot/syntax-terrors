@@ -20,6 +20,7 @@ export default function Home() {
   const [highScore, setHighScore] = useState(0);
   const [wasDamaged, setWasDamaged] = useState(false);
   const [waveMessage, setWaveMessage] = useState('');
+  const [playerMessage, setPlayerMessage] = useState('');
   const mainRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
@@ -42,6 +43,7 @@ export default function Home() {
     setZombiesRemaining(0);
     setGameState('playing');
     setWaveMessage('');
+    setPlayerMessage('');
   };
 
   const pauseGame = useCallback(() => {
@@ -85,6 +87,7 @@ export default function Home() {
           wave={wave} 
           health={health}
           waveMessage={waveMessage}
+          playerMessage={playerMessage}
           zombiesRemaining={zombiesRemaining}
         />
       )}
@@ -107,6 +110,7 @@ export default function Home() {
           onPause={pauseGame}
           onTakeDamage={handleTakeDamage}
           setWaveMessage={setWaveMessage}
+          setPlayerMessage={setPlayerMessage}
           wave={wave}
           score={score}
           health={health}

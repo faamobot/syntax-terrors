@@ -762,12 +762,12 @@ export default function Game({
        switch (e.code) {
         case 'KeyW': data.input.forward = false; break;
         case 'KeyS': data.input.backward = false; break;
-        case 'KeyA': data.input.left = true; break;
-        case 'KeyD': data.input.right = true; break;
-        case 'ArrowUp': data.input.lookUp = true; break;
-        case 'ArrowDown': data.input.lookDown = true; break;
-        case 'ArrowLeft': data.input.lookLeft = true; break;
-        case 'ArrowRight': data.input.lookRight = true; break;
+        case 'KeyA': data.input.left = false; break;
+        case 'KeyD': data.input.right = false; break;
+        case 'ArrowUp': data.input.lookUp = false; break;
+        case 'ArrowDown': data.input.lookDown = false; break;
+        case 'ArrowLeft': data.input.lookLeft = false; break;
+        case 'ArrowRight': data.input.lookRight = false; break;
         case 'KeyF': data.input.shoot = false; break;
         case 'Space': data.input.jump = false; break;
         case 'ShiftLeft': data.input.sprint = false; break;
@@ -1098,5 +1098,3 @@ export default function Game({
 
   return <div ref={mountRef} className="absolute inset-0 z-0" />;
 }
-
-    

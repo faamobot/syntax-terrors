@@ -328,10 +328,10 @@ export default function Game({
         case 'KeyS': data.input.backward = false; break;
         case 'KeyA': data.input.left = false; break;
         case 'KeyD': data.input.right = false; break;
-        case 'ArrowUp': data.input.lookUp = false; break;
-        case 'ArrowDown': data.input.lookDown = false; break;
+        case 'ArrowUp': data.input.lookUp = true; break;
+        case 'ArrowDown': data.input.lookDown = true; break;
         case 'ArrowLeft': data.input.lookLeft = false; break;
-        case 'ArrowRight': data.input.lookRight = false; break;
+        case 'ArrowRight': data.input.lookRight = true; break;
         case 'KeyF': data.input.shoot = false; break;
         case 'Space': data.input.jump = false; break;
         case 'ShiftLeft': data.input.sprint = false; break;
@@ -458,29 +458,16 @@ export default function Game({
       data.player.position.z = THREE.MathUtils.clamp(data.player.position.z, -halfSize, halfSize);
 
       data.zombies.forEach(zombie => {
+        const zombiePrevPosition = zombie.position.clone();
         const zombieHeight = (zombie.geometry as THREE.BoxGeometry).parameters.height;
         zombie.position.y = zombieHeight / 2;
 
         zombie.lookAt(data.player.position);
         const distance = zombie.position.distanceTo(data.player.position);
-        
-        const zombieCollider = new THREE.Box3().setFromObject(zombie);
-        let collidedWithObstacle = false;
 
-        data.obstacles.forEach(obstacle => {
-            const obstacleCollider = new THREE.Box3().setFromObject(obstacle);
-            if (zombieCollider.intersectsBox(obstacleCollider)) {
-                collidedWithObstacle = true;
-                const avoidance = new THREE.Vector3();
-                zombie.getWorldDirection(avoidance);
-                avoidance.cross(new THREE.Vector3(0, 1, 0)).normalize().multiplyScalar(0.1);
-                zombie.position.add(avoidance);
-            }
-        });
-
-        if (distance > 1.5 && !collidedWithObstacle) {
+        if (distance > 1.5) {
             zombie.translateZ(zombie.speed);
-        } else if (distance <= 1.5) {
+        } else {
             const time = performance.now();
             if (time - data.lastDamageTime > 1000) { 
                 data.lastDamageTime = time;
@@ -488,6 +475,14 @@ export default function Game({
                 onTakeDamage();
             }
         }
+        
+        const zombieCollider = new THREE.Box3().setFromObject(zombie);
+        data.obstacles.forEach(obstacle => {
+            const obstacleCollider = new THREE.Box3().setFromObject(obstacle);
+            if (zombieCollider.intersectsBox(obstacleCollider)) {
+                zombie.position.copy(zombiePrevPosition);
+            }
+        });
       });
       
       data.bullets.forEach((bullet, index) => {
@@ -591,3 +586,5 @@ export default function Game({
 
   return <div ref={mountRef} className="absolute inset-0 z-0" />;
 }
+
+    

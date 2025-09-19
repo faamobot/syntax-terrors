@@ -64,9 +64,11 @@ export async function generateZombieWave(input: GenerateZombieWaveInput): Promis
     const speedBase = { walker: 0.02, runner: 0.04, brute: 0.01, clicker: 0.06 }[type];
     const speedVariation = ((i % 5) / 5) * 0.15; // Deterministic variation
 
+    const health = type === 'clicker' ? 120 : 100;
+
     zombies.push({
       type,
-      health: 100, // Standardized health
+      health,
       speed: speedBase * (1 + speedVariation + waveNumber * 0.02),
     });
   }

@@ -103,6 +103,8 @@ export default function Game({
   setWaveMessage,
   wave,
   health,
+  score,
+  zombiesRemaining,
   containerRef,
 }: GameProps) {
   const mountRef = useRef<HTMLDivElement>(null);
@@ -303,9 +305,9 @@ export default function Game({
     setZombiesRemaining(newRemaining);
 
     if (newRemaining <= 0) {
-        startNewWave(waveRef.current + 1);
+        setWave(w => w + 1);
     }
-  }, [setScore, setZombiesRemaining, startNewWave]);
+  }, [setScore, setZombiesRemaining, setWave]);
   
   const applyDamage = useCallback((zombie: Zombie, damage: number) => {
     playSound('zombieDamage');
@@ -391,11 +393,11 @@ export default function Game({
 
 
   useEffect(() => {
-    if (wave > 0) {
+    if (wave > 0 && gameState === 'playing') {
       startNewWave(wave);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [wave]);
+  }, [wave, gameState]);
 
 
   useEffect(() => {
@@ -566,8 +568,8 @@ export default function Game({
        switch (e.code) {
         case 'KeyW': data.input.forward = false; break;
         case 'KeyS': data.input.backward = false; break;
-        case 'KeyA': data.input.left = true; break;
-        case 'KeyD': data.input.right = true; break;
+        case 'KeyA': data.input.left = false; break;
+        case 'KeyD': data.input.right = false; break;
         case 'ArrowUp': data.input.lookUp = false; break;
         case 'ArrowDown': data.input.lookDown = false; break;
         case 'ArrowLeft': data.input.lookLeft = false; break;
@@ -674,7 +676,7 @@ export default function Game({
               currentCollider.getCenter(penetration).sub(obstacleCollider.getCenter(new THREE.Vector3()));
       
               const playerSize = currentCollider.getSize(new THREE.Vector3());
-              const obstacleSize = obstacleCollider.getSize(obstacleCollider);
+              const obstacleSize = obstacleCollider.getSize(new THREE.Vector3());
       
               const overlapX = (playerSize.x + obstacleSize.x) / 2 - Math.abs(penetration.x);
               const overlapZ = (playerSize.z + obstacleSize.z) / 2 - Math.abs(penetration.z);

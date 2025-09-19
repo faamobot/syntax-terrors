@@ -122,11 +122,13 @@ export default function Game({
           gameData.current.zombies.push(zombie);
       }
       
-      if (waveData.zombieCount === 0) {
+      if (waveData.zombieCount === 0 && currentWave > 0) {
         gameData.current.waveInProgress = false;
         // If the API for some reason returns 0 zombies for a later wave, immediately try to start the next one.
         // This prevents the game from getting stuck.
         startNewWave();
+      } else {
+        gameData.current.waveInProgress = false;
       }
       
     } catch (e) {
@@ -247,7 +249,7 @@ export default function Game({
         case 'KeyA': data.input.left = false; break;
         case 'KeyD': data.input.right = false; break;
         case 'ArrowUp': data.input.arrowUp = false; break;
-        case 'ArrowDown': data.input.arrowDown = true; break;
+        case 'ArrowDown': data.input.arrowDown = false; break;
         case 'ArrowLeft': data.input.arrowLeft = false; break;
         case 'ArrowRight': data.input.arrowRight = false; break;
       }
@@ -281,7 +283,6 @@ export default function Game({
           setScore(s => s + 100);
 
           if (data.zombies.length === 0) {
-            data.waveInProgress = false;
             startNewWave();
           }
         }
@@ -356,7 +357,7 @@ export default function Game({
         }
       });
       
-      if(health <= 10) { 
+      if(health <= 0) { 
         onGameOver();
       }
 

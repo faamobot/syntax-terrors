@@ -42,7 +42,7 @@ const prompt = ai.definePrompt({
   output: {schema: GenerateZombieWaveOutputSchema},
   prompt: `You are the AI game director for Zombie Rampage. Your job is to create increasingly challenging waves of zombies based on the player's performance.
 
-  IMPORTANT: For waveNumber 0, you MUST return a zombieCount of 0. This is the start of the game.
+  IMPORTANT: For waveNumber 1, you MUST return a small number of zombies (e.g., 3-5). For waveNumber 0, the messageToPlayer should be an empty string.
 
   Wave Number: {{{waveNumber}}}
   Player Score: {{{playerScore}}}
@@ -51,10 +51,10 @@ const prompt = ai.definePrompt({
 
   Based on these factors, determine the following:
 
-  - zombieCount: How many zombies should spawn this wave? Start with 0 zombies for wave 0. For wave 1, spawn a small number (e.g., 3-5). Increase it with each subsequent wave. The increase should be more significant in later waves.
+  - zombieCount: How many zombies should spawn this wave? For wave 1, spawn a small number (e.g., 3-5). Increase it with each subsequent wave. The increase should be more significant in later waves.
   - zombieSpeedMultiplier: How fast should the zombies be? Keep it at 1.0 for the first few waves, then increase it gradually.
   - zombieHealthMultiplier: How much health should the zombies have? Keep it at 1.0 for the first few waves, then increase it gradually.
-  - messageToPlayer: For wave 0, the message should be an empty string. For wave 1, it should be something like "Wave 1: Here they come!". For later waves, provide a short, encouraging or taunting message that includes the wave number, like "Wave 2: A few more for you!".
+  - messageToPlayer: For wave 1, it should be something like "Wave 1: Here they come!". For later waves, provide a short, encouraging or taunting message that includes the wave number, like "Wave 2: A few more for you!".
 
   Ensure the difficulty curve is smooth. The first few waves should be easy, and the challenge should ramp up.
 

@@ -288,11 +288,11 @@ export default function Game({
         case 'KeyD': data.input.right = false; break;
         case 'KeyF': data.input.shoot = false; break;
         case 'Space': data.input.jump = false; break;
-        case 'ShiftLeft': data.input.sprint = false; break;
-        case 'ArrowUp': data.input.arrowUp = false; break;
-        case 'ArrowDown': data.input.arrowDown = false; break;
-        case 'ArrowLeft': data.input.arrowLeft = false; break;
-        case 'ArrowRight': data.input.arrowRight = false; break;
+        case 'ShiftLeft': data.input.sprint = true; break;
+        case 'ArrowUp': data.input.arrowUp = true; break;
+        case 'ArrowDown': data.input.arrowDown = true; break;
+        case 'ArrowLeft': data.input.arrowLeft = true; break;
+        case 'ArrowRight': data.input.arrowRight = true; break;
       }
     };
     
@@ -368,72 +368,56 @@ export default function Game({
       data.playerVelocity.y -= 20.0 * delta; 
       
       const prevPosition = data.player.position.clone();
+      const playerCollider = new THREE.Box3().setFromObject(data.player);
+      const playerHeight = (playerCollider.max.y - playerCollider.min.y);
 
       // Update player position based on velocity
       data.player.position.x += data.playerVelocity.x * delta;
       data.player.position.y += data.playerVelocity.y * delta;
       data.player.position.z += data.playerVelocity.z * delta;
 
-      
+      // --- Collision Detection and Resolution ---
       data.onGround = false;
-      const playerHeight = 1.6;
-
-      // Ground collision
-      if (data.player.position.y < playerHeight / 2) {
-          data.player.position.y = playerHeight / 2;
+      const playerHalfHeight = playerHeight / 2;
+      
+      // 1. Ground collision
+      if (data.player.position.y < playerHalfHeight) {
+          data.player.position.y = playerHalfHeight;
           data.playerVelocity.y = 0;
           data.onGround = true;
       }
-      
-      const playerCollider = new THREE.Box3().setFromObject(data.player);
 
-      let onAnyObject = false;
-      
-      // Obstacle collision - Player (Vertical)
+      // 2. Obstacle collision
       data.obstacles.forEach(obstacle => {
-        const obstacleCollider = new THREE.Box3().setFromObject(obstacle);
-        const intersects = playerCollider.intersectsBox(obstacleCollider);
-        
-        if (intersects) {
-          const obstacleSize = obstacleCollider.getSize(new THREE.Vector3());
-          // Check if player is on top of the obstacle
-          if (prevPosition.y >= obstacle.position.y + obstacleSize.y / 2 - 0.1 && data.playerVelocity.y <= 0) {
-             data.player.position.y = obstacle.position.y + obstacleSize.y / 2 + playerHeight / 2;
-             data.playerVelocity.y = 0;
-             data.onGround = true;
-             onAnyObject = true;
-          }
-        }
-      });
-      
-      // Obstacle collision - Player (Horizontal)
-      if (!onAnyObject) {
-          data.obstacles.forEach(obstacle => {
-            const obstacleCollider = new THREE.Box3().setFromObject(obstacle);
-            // Recalculate collider after potential vertical adjustment
-            const currentCollider = new THREE.Box3().setFromObject(data.player);
-            const intersects = currentCollider.intersectsBox(obstacleCollider);
+          const obstacleCollider = new THREE.Box3().setFromObject(obstacle);
+          const currentCollider = new THREE.Box3().setFromObject(data.player);
 
-            if (intersects) {
-                const penetration = new THREE.Vector3();
-                currentCollider.getCenter(penetration).sub(obstacleCollider.getCenter(new THREE.Vector3()));
-        
-                const playerSize = currentCollider.getSize(new THREE.Vector3());
-                const obstacleSize = obstacleCollider.getSize(new THREE.Vector3());
-        
-                const overlapX = (playerSize.x + obstacleSize.x) / 2 - Math.abs(penetration.x);
-                const overlapZ = (playerSize.z + obstacleSize.z) / 2 - Math.abs(penetration.z);
-                
-                if (overlapX < overlapZ) {
-                    data.player.position.x += penetration.x > 0 ? overlapX : -overlapX;
-                    data.playerVelocity.x = 0;
-                } else {
-                    data.player.position.z += penetration.z > 0 ? overlapZ : -overlapZ;
-                    data.playerVelocity.z = 0;
-                }
-            }
-        });
-      }
+          if (currentCollider.intersectsBox(obstacleCollider)) {
+              // Check for landing on top first
+              if (prevPosition.y >= obstacleCollider.max.y && data.playerVelocity.y <= 0) {
+                  data.player.position.y = obstacleCollider.max.y + playerHalfHeight;
+                  data.playerVelocity.y = 0;
+                  data.onGround = true;
+              } else { // Side collision
+                  const penetration = new THREE.Vector3();
+                  currentCollider.getCenter(penetration).sub(obstacleCollider.getCenter(new THREE.Vector3()));
+          
+                  const playerSize = currentCollider.getSize(new THREE.Vector3());
+                  const obstacleSize = obstacleCollider.getSize(new THREE.Vector3());
+          
+                  const overlapX = (playerSize.x + obstacleSize.x) / 2 - Math.abs(penetration.x);
+                  const overlapZ = (playerSize.z + obstacleSize.z) / 2 - Math.abs(penetration.z);
+                  
+                  if (overlapX < overlapZ) {
+                      data.player.position.x += penetration.x > 0 ? overlapX : -overlapX;
+                      data.playerVelocity.x = 0;
+                  } else {
+                      data.player.position.z += penetration.z > 0 ? overlapZ : -overlapZ;
+                      data.playerVelocity.z = 0;
+                  }
+              }
+          }
+      });
 
 
       const playerRadius = 0.5;
@@ -442,6 +426,9 @@ export default function Game({
       data.player.position.z = THREE.MathUtils.clamp(data.player.position.z, -halfSize, halfSize);
 
       data.zombies.forEach(zombie => {
+        const zombieHeight = (zombie.geometry as THREE.BoxGeometry).parameters.height;
+        zombie.position.y = zombieHeight / 2; // Keep zombie on the ground
+
         zombie.lookAt(data.player.position);
         const distance = zombie.position.distanceTo(data.player.position);
         
@@ -557,3 +544,5 @@ export default function Game({
 
   return <div ref={mountRef} className="absolute inset-0 z-0" />;
 }
+
+    

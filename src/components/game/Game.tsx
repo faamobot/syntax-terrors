@@ -369,6 +369,7 @@ export default function Game({
       
       const prevPosition = data.player.position.clone();
 
+      // Update player position based on velocity
       data.player.position.x += data.playerVelocity.x * delta;
       data.player.position.y += data.playerVelocity.y * delta;
       data.player.position.z += data.playerVelocity.z * delta;
@@ -383,44 +384,57 @@ export default function Game({
           data.playerVelocity.y = 0;
           data.onGround = true;
       }
-
-      const playerCollider = new THREE.Box3().setFromObject(data.player);
       
-      // Obstacle collision - Player
+      const playerCollider = new THREE.Box3().setFromObject(data.player);
+
+      let onAnyObject = false;
+      
+      // Obstacle collision - Player (Vertical)
       data.obstacles.forEach(obstacle => {
         const obstacleCollider = new THREE.Box3().setFromObject(obstacle);
         const intersects = playerCollider.intersectsBox(obstacleCollider);
         
         if (intersects) {
-          const penetration = new THREE.Vector3();
-          playerCollider.getCenter(penetration).sub(obstacleCollider.getCenter(new THREE.Vector3()));
-      
-          const playerSize = playerCollider.getSize(new THREE.Vector3());
           const obstacleSize = obstacleCollider.getSize(new THREE.Vector3());
-      
-          const overlapX = (playerSize.x + obstacleSize.x) / 2 - Math.abs(penetration.x);
-          const overlapZ = (playerSize.z + obstacleSize.z) / 2 - Math.abs(penetration.z);
-          const overlapY = (playerSize.y + obstacleSize.y) / 2 - Math.abs(penetration.y);
-
           // Check if player is on top of the obstacle
-          if (overlapY > 0 && prevPosition.y >= obstacle.position.y + obstacleSize.y / 2 - 0.1) {
-             if (data.playerVelocity.y <= 0) {
-                 data.player.position.y = obstacle.position.y + obstacleSize.y / 2 + playerHeight / 2;
-                 data.playerVelocity.y = 0;
-                 data.onGround = true;
-                 return; // Exit early since we're on top
-             }
-          }
-          
-          if (overlapX < overlapZ) {
-              data.player.position.x += penetration.x > 0 ? overlapX : -overlapX;
-              data.playerVelocity.x = 0;
-          } else {
-              data.player.position.z += penetration.z > 0 ? overlapZ : -overlapZ;
-              data.playerVelocity.z = 0;
+          if (prevPosition.y >= obstacle.position.y + obstacleSize.y / 2 - 0.1 && data.playerVelocity.y <= 0) {
+             data.player.position.y = obstacle.position.y + obstacleSize.y / 2 + playerHeight / 2;
+             data.playerVelocity.y = 0;
+             data.onGround = true;
+             onAnyObject = true;
           }
         }
       });
+      
+      // Obstacle collision - Player (Horizontal)
+      if (!onAnyObject) {
+          data.obstacles.forEach(obstacle => {
+            const obstacleCollider = new THREE.Box3().setFromObject(obstacle);
+            // Recalculate collider after potential vertical adjustment
+            const currentCollider = new THREE.Box3().setFromObject(data.player);
+            const intersects = currentCollider.intersectsBox(obstacleCollider);
+
+            if (intersects) {
+                const penetration = new THREE.Vector3();
+                currentCollider.getCenter(penetration).sub(obstacleCollider.getCenter(new THREE.Vector3()));
+        
+                const playerSize = currentCollider.getSize(new THREE.Vector3());
+                const obstacleSize = obstacleCollider.getSize(new THREE.Vector3());
+        
+                const overlapX = (playerSize.x + obstacleSize.x) / 2 - Math.abs(penetration.x);
+                const overlapZ = (playerSize.z + obstacleSize.z) / 2 - Math.abs(penetration.z);
+                
+                if (overlapX < overlapZ) {
+                    data.player.position.x += penetration.x > 0 ? overlapX : -overlapX;
+                    data.playerVelocity.x = 0;
+                } else {
+                    data.player.position.z += penetration.z > 0 ? overlapZ : -overlapZ;
+                    data.playerVelocity.z = 0;
+                }
+            }
+        });
+      }
+
 
       const playerRadius = 0.5;
       const halfSize = ARENA_SIZE / 2 - playerRadius;
@@ -432,11 +446,12 @@ export default function Game({
         const distance = zombie.position.distanceTo(data.player.position);
         
         const zombieCollider = new THREE.Box3().setFromObject(zombie);
-        let collided = false;
+        let collidedWithObstacle = false;
+
         data.obstacles.forEach(obstacle => {
             const obstacleCollider = new THREE.Box3().setFromObject(obstacle);
             if (zombieCollider.intersectsBox(obstacleCollider)) {
-                collided = true;
+                collidedWithObstacle = true;
                 const penetration = new THREE.Vector3();
                 zombieCollider.getCenter(penetration).sub(obstacleCollider.getCenter(new THREE.Vector3()));
 
@@ -447,14 +462,14 @@ export default function Game({
                 const overlapZ = (zombieSize.z + obstacleSize.z) / 2 - Math.abs(penetration.z);
 
                 if (overlapX < overlapZ) {
-                    zombie.position.x += (penetration.x > 0 ? 1 : -1) * zombie.speed * delta * 50;
+                    zombie.position.x += (penetration.x > 0 ? 1 : -1) * 0.1;
                 } else {
-                    zombie.position.z += (penetration.z > 0 ? 1 : -1) * zombie.speed * delta * 50;
+                    zombie.position.z += (penetration.z > 0 ? 1 : -1) * 0.1;
                 }
             }
         });
 
-        if (distance > 1.5 && !collided) {
+        if (distance > 1.5 && !collidedWithObstacle) {
             zombie.translateZ(zombie.speed);
         } else if (distance <= 1.5) {
             const time = performance.now();

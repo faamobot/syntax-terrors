@@ -319,13 +319,6 @@ export default function Game({
       if (waveNumber > 1) {
         dropHealthCrate(waveNumber - 1);
       }
-
-      if (waveNumber === 4 && data.baseBulletDamage === 20) {
-        data.baseBulletDamage = 40;
-        playSound('powerup');
-        setPlayerMessage("BULLETS UPGRADED!");
-        setTimeout(() => setPlayerMessage(''), 4000);
-      }
       
       const isPositionValid = (position: THREE.Vector3) => {
         const tempZombieBox = new THREE.Box3(
@@ -477,30 +470,31 @@ export default function Game({
 
     playSound('shoot');
 
-    // Get camera direction for both bullet and raycaster
-    const shootDirection = new THREE.Vector3();
-    data.camera.getWorldDirection(shootDirection);
-
     // Visual bullet
     const bulletMaterial = new THREE.MeshBasicMaterial({ color: bulletColor });
     const bulletGeometry = new THREE.SphereGeometry(0.1, 8, 8);
     const bullet = new THREE.Mesh(bulletGeometry, bulletMaterial) as Bullet;
     
-    // Clone direction vector for bullet position to avoid mutation issues
-    const bulletPositionVector = shootDirection.clone();
-    bullet.position.copy(data.player.position).add(bulletPositionVector.multiplyScalar(0.8));
+    // Use a fresh direction vector for the bullet's velocity
+    const bulletVelocityVector = new THREE.Vector3();
+    data.camera.getWorldDirection(bulletVelocityVector);
+
+    bullet.position.copy(data.player.position).add(bulletVelocityVector.clone().multiplyScalar(0.8));
     bullet.position.y += 1.5;
 
-    bullet.velocity = shootDirection.clone().multiplyScalar(150);
+    bullet.velocity = bulletVelocityVector.multiplyScalar(150);
     bullet.spawnTime = time;
 
     data.scene.add(bullet);
     data.bullets.push(bullet);
 
-    // Raycast for hit detection - using the original, unmodified shootDirection
+    // Use another fresh direction vector for the raycaster
+    const raycastDirection = new THREE.Vector3();
+    data.camera.getWorldDirection(raycastDirection);
+    
     const raycaster = new THREE.Raycaster(
         data.camera.position,
-        shootDirection
+        raycastDirection
     );
     
     const intersects = raycaster.intersectObjects(data.zombies, true);

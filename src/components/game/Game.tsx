@@ -30,6 +30,7 @@ type Zombie = THREE.Group & {
   type: 'walker' | 'runner' | 'brute';
   originalColor: THREE.Color;
   isZombie: true;
+  lastMoanTime: number;
 };
 
 type Bullet = THREE.Mesh & {
@@ -101,9 +102,6 @@ export default function Game({
   onTakeDamage,
   setWaveMessage,
   wave,
-  score,
-  health,
-  zombiesRemaining,
   toast,
   containerRef,
 }: GameProps) {
@@ -112,6 +110,8 @@ export default function Game({
   const waveRef = useRef(wave);
   waveRef.current = wave;
   
+  const audioContextRef = useRef<AudioContext | null>(null);
+
   const gameData = useRef({
     scene: new THREE.Scene(),
     camera: new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000),
@@ -145,6 +145,65 @@ export default function Game({
     lastDamageTime: 0,
   });
 
+  const playSound = useCallback((type: 'shoot' | 'playerDamage' | 'zombieDamage' | 'zombieMoan') => {
+    if (!audioContextRef.current) return;
+    const ctx = audioContextRef.current;
+    const now = ctx.currentTime;
+    
+    if (type === 'shoot') {
+        const oscillator = ctx.createOscillator();
+        const gainNode = ctx.createGain();
+        oscillator.connect(gainNode);
+        gainNode.connect(ctx.destination);
+        
+        oscillator.type = 'sawtooth';
+        oscillator.frequency.setValueAtTime(200, now);
+        gainNode.gain.setValueAtTime(0.3, now);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+        oscillator.start(now);
+        oscillator.stop(now + 0.1);
+    } else if (type === 'playerDamage') {
+        const oscillator = ctx.createOscillator();
+        const gainNode = ctx.createGain();
+        oscillator.connect(gainNode);
+        gainNode.connect(ctx.destination);
+        
+        oscillator.type = 'sine';
+        oscillator.frequency.setValueAtTime(100, now);
+        oscillator.frequency.exponentialRampToValueAtTime(50, now + 0.2);
+        gainNode.gain.setValueAtTime(0.5, now);
+        gainNode.gain.linearRampToValueAtTime(0, now + 0.2);
+        oscillator.start(now);
+        oscillator.stop(now + 0.2);
+    } else if (type === 'zombieDamage') {
+        const oscillator = ctx.createOscillator();
+        const gainNode = ctx.createGain();
+        oscillator.connect(gainNode);
+        gainNode.connect(ctx.destination);
+        
+        oscillator.type = 'square';
+        oscillator.frequency.setValueAtTime(400, now);
+        gainNode.gain.setValueAtTime(0.2, now);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.08);
+        oscillator.start(now);
+        oscillator.stop(now + 0.08);
+    } else if (type === 'zombieMoan') {
+        const oscillator = ctx.createOscillator();
+        const gainNode = ctx.createGain();
+        oscillator.connect(gainNode);
+        gainNode.connect(ctx.destination);
+        
+        oscillator.type = 'sawtooth';
+        const startFreq = 80 + Math.random() * 20;
+        oscillator.frequency.setValueAtTime(startFreq, now);
+        oscillator.frequency.exponentialRampToValueAtTime(startFreq - 20, now + 1.5);
+        gainNode.gain.setValueAtTime(0.1, now);
+        gainNode.gain.linearRampToValueAtTime(0, now + 1.5);
+        oscillator.start(now);
+        oscillator.stop(now + 1.5);
+    }
+  }, []);
+
   const startNewWave = useCallback(async (waveNumber: number) => {
     const { current: data } = gameData;
     
@@ -153,7 +212,8 @@ export default function Game({
         waveNumber: waveNumber,
         difficulty: 'normal',
       });
-      
+
+      setWave(waveNumber);
       setZombiesRemaining(waveData.zombies.length);
       
       if(waveData.messageToPlayer) {
@@ -185,6 +245,7 @@ export default function Game({
         (zombie as any).type = zombieData.type;
         (zombie as any).originalColor = zombieColor.clone();
         (zombie as any).isZombie = true;
+        (zombie as any).lastMoanTime = 0;
         
         data.scene.add(zombie);
         data.zombies.push(zombie);
@@ -198,14 +259,7 @@ export default function Game({
         variant: "destructive",
       });
     }
-  }, [setWaveMessage, toast, setZombiesRemaining]);
-
-  useEffect(() => {
-    if (wave > 0) {
-      startNewWave(wave);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [wave]);
+  }, [setWaveMessage, toast, setZombiesRemaining, setWave]);
 
   const despawnZombie = useCallback((zombie: Zombie) => {
     const { current: data } = gameData;
@@ -214,7 +268,7 @@ export default function Game({
     zombie.traverse(child => {
         if (child instanceof THREE.Mesh) {
             child.geometry.dispose();
-            child.material.dispose();
+            (child.material as THREE.Material).dispose();
         }
     });
 
@@ -224,13 +278,14 @@ export default function Game({
     setZombiesRemaining(prev => {
         const newCount = prev - 1;
         if (newCount <= 0) {
-            setWave(w => w + 1);
+            startNewWave(waveRef.current + 1);
         }
         return newCount;
     });
-  }, [setScore, setZombiesRemaining, setWave]);
+  }, [setScore, setZombiesRemaining, startNewWave]);
   
   const applyDamage = useCallback((zombie: Zombie, damage: number) => {
+    playSound('zombieDamage');
     zombie.health -= damage;
 
     zombie.traverse(child => {
@@ -242,8 +297,10 @@ export default function Game({
     setTimeout(() => {
         zombie.traverse(child => {
             if (child instanceof THREE.Mesh && child.material) {
-                // This assumes torso is first, change if model changes
-                (child.material as THREE.MeshStandardMaterial).color.set(child.parent === zombie && child.geometry.type === "BoxGeometry" ? (zombie.originalColor) : new THREE.Color(0x5a6e5a));
+                const material = child.material as THREE.MeshStandardMaterial;
+                if (material.color) { // Check if color property exists
+                    material.color.set(child.parent === zombie && child.geometry.type === "BoxGeometry" ? (zombie.originalColor) : new THREE.Color(0x5a6e5a));
+                }
             }
         });
     }, 150);
@@ -251,13 +308,14 @@ export default function Game({
     if (zombie.health <= 0) {
       despawnZombie(zombie);
     }
-  }, [despawnZombie]);
+  }, [despawnZombie, playSound]);
   
   const handleShoot = useCallback(() => {
     const { current: data } = gameData;
     const time = performance.now();
     if (time - data.lastShotTime < 200) return;
     data.lastShotTime = time;
+    playSound('shoot');
 
     const bulletMaterial = new THREE.MeshBasicMaterial({ color: 0xffff00 });
     const bulletGeometry = new THREE.SphereGeometry(0.1, 8, 8);
@@ -286,23 +344,37 @@ export default function Game({
       let hitObject = intersects[0].object;
       let targetZombie: Zombie | null = null;
       
-      while (hitObject) {
-        if ((hitObject as any).isZombie) {
-            targetZombie = hitObject as Zombie;
+      let current: THREE.Object3D | null = hitObject;
+      while (current) {
+        if ((current as any).isZombie) {
+            targetZombie = current as Zombie;
             break;
         }
-        if(hitObject.parent) {
-            hitObject = hitObject.parent;
-        } else {
-            break;
-        }
+        current = current.parent;
       }
 
       if (targetZombie && intersects[0].distance < 100) { 
           applyDamage(targetZombie, 20);
       }
     }
-  }, [applyDamage]);
+  }, [applyDamage, playSound]);
+
+  useEffect(() => {
+    if (gameState === 'playing' && !audioContextRef.current) {
+        audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+    } else if (gameState !== 'playing' && audioContextRef.current) {
+        audioContextRef.current.close();
+        audioContextRef.current = null;
+    }
+  }, [gameState]);
+
+
+  useEffect(() => {
+    if (wave > 0) {
+      startNewWave(wave);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wave]);
 
 
   useEffect(() => {
@@ -470,9 +542,10 @@ export default function Game({
     };
 
     const handleResize = () => {
+        if (!data.renderer) return;
         data.camera.aspect = window.innerWidth / window.innerHeight;
         data.camera.updateProjectionMatrix();
-        data.renderer?.setSize(window.innerWidth, window.innerHeight);
+        data.renderer.setSize(window.innerWidth, window.innerHeight);
     }
     
     document.addEventListener('keydown', handleKeyDown);
@@ -589,6 +662,13 @@ export default function Game({
         zombie.children[4].rotation.x = -limbBob; // left leg
         zombie.children[5].rotation.x = limbBob; // right leg
 
+        // Ambient sound
+        const timeSinceMoan = time - zombie.lastMoanTime;
+        if (timeSinceMoan > 5000 + Math.random() * 5000) { // Moan every 5-10 seconds
+            playSound('zombieMoan');
+            zombie.lastMoanTime = time;
+        }
+
         zombie.lookAt(data.player.position);
         const distance = zombie.position.distanceTo(data.player.position);
 
@@ -598,7 +678,13 @@ export default function Game({
             const time = performance.now();
             if (time - data.lastDamageTime > 1000) { 
                 data.lastDamageTime = time;
-                setHealth(h => Math.max(0, h - 10));
+                setHealth(h => {
+                    const newHealth = Math.max(0, h - 10);
+                    if (newHealth > 0) {
+                        playSound('playerDamage');
+                    }
+                    return newHealth;
+                });
                 onTakeDamage();
             }
         }
@@ -628,10 +714,6 @@ export default function Game({
         }
       });
 
-      if(health <= 0) { 
-        onGameOver();
-      }
-
       data.renderer.render(data.scene, data.camera);
     };
     
@@ -649,13 +731,13 @@ export default function Game({
       document.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('resize', handleResize);
       
-      data.scene.children.forEach(child => {
-        if(child instanceof THREE.Mesh) {
+      data.scene.traverse(child => {
+        if (child instanceof THREE.Mesh) {
           child.geometry.dispose();
           if(Array.isArray(child.material)) {
-            child.material.forEach(material => material.dispose());
+            child.material.forEach(m => m.dispose());
           } else {
-            child.material.dispose();
+            (child.material as THREE.Material).dispose();
           }
         }
       });
@@ -715,5 +797,3 @@ export default function Game({
 
   return <div ref={mountRef} className="absolute inset-0 z-0" />;
 }
-
-    

@@ -112,6 +112,7 @@ export default function Home() {
           health={health}
           toast={toast}
           containerRef={mainRef}
+          zombiesRemaining={zombiesRemaining}
         />
       )}
     </main>

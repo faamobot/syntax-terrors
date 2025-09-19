@@ -19,6 +19,7 @@ type GameProps = {
   wave: number;
   score: number;
   health: number;
+  zombiesRemaining: number;
   toast: ReturnType<typeof useToast>['toast'];
   containerRef: React.RefObject<HTMLDivElement>;
 };
@@ -44,6 +45,7 @@ export default function Game({
   setWaveMessage,
   wave,
   health,
+  zombiesRemaining,
   toast,
   containerRef
 }: GameProps) {
@@ -83,16 +85,16 @@ export default function Game({
     waveInProgress: false,
   });
 
-  const startNewWave = useCallback(async (currentWave: number) => {
+  const startNewWave = useCallback(async (newWaveNumber: number) => {
     const { current: data } = gameData;
     if (data.waveInProgress) return;
     data.waveInProgress = true;
     
-    setWave(currentWave);
+    setWave(newWaveNumber);
     
     try {
       const waveData = await generateZombieWave({
-        waveNumber: currentWave,
+        waveNumber: newWaveNumber,
         difficulty: 'normal',
       });
       
@@ -153,14 +155,14 @@ export default function Game({
     data.scene.remove(zombie);
     data.zombies = data.zombies.filter(z => z !== zombie);
     setScore(s => s + 100);
-    setZombiesRemaining(r => {
-      const newRemaining = r - 1;
-      if (newRemaining <= 0 && !data.waveInProgress) {
-        setTimeout(() => startNewWave(wave + 1), 1000);
-      }
-      return newRemaining;
-    });
-  }, [setScore, startNewWave, setZombiesRemaining, wave]);
+
+    const newRemaining = zombiesRemaining - 1;
+    setZombiesRemaining(newRemaining);
+
+    if (newRemaining <= 0 && !data.waveInProgress) {
+        startNewWave(wave + 1);
+    }
+  }, [setScore, startNewWave, setZombiesRemaining, wave, zombiesRemaining]);
 
   const applyDamage = useCallback((zombie: Zombie, damage: number) => {
     zombie.health -= damage;
@@ -269,14 +271,22 @@ export default function Game({
 
     const handleKeyDown = (e: KeyboardEvent) => {
       switch (e.code) {
-        case 'KeyW': data.input.forward = true; break;
-        case 'KeyS': data.input.backward = true; break;
-        case 'KeyA': data.input.left = true; break;
-        case 'KeyD': data.input.right = true; break;
-        case 'ArrowUp': data.input.lookUp = true; break;
-        case 'ArrowDown': data.input.lookDown = true; break;
-        case 'ArrowLeft': data.input.lookLeft = true; break;
-        case 'ArrowRight': data.input.lookRight = true; break;
+        case 'KeyW':
+        case 'ArrowUp':
+          data.input.forward = true;
+          break;
+        case 'KeyS':
+        case 'ArrowDown':
+          data.input.backward = true;
+          break;
+        case 'KeyA':
+        case 'ArrowLeft':
+          data.input.left = true;
+          break;
+        case 'KeyD':
+        case 'ArrowRight':
+          data.input.right = true;
+          break;
         case 'KeyF': data.input.shoot = true; break;
         case 'Space': data.input.jump = true; break;
         case 'ShiftLeft': data.input.sprint = true; break;
@@ -284,14 +294,22 @@ export default function Game({
     };
     const handleKeyUp = (e: KeyboardEvent) => {
        switch (e.code) {
-        case 'KeyW': data.input.forward = false; break;
-        case 'KeyS': data.input.backward = false; break;
-        case 'KeyA': data.input.left = false; break;
-        case 'KeyD': data.input.right = false; break;
-        case 'ArrowUp': data.input.lookUp = false; break;
-        case 'ArrowDown': data.input.lookDown = false; break;
-        case 'ArrowLeft': data.input.lookLeft = false; break;
-        case 'ArrowRight': data.input.lookRight = false; break;
+        case 'KeyW':
+        case 'ArrowUp':
+          data.input.forward = false;
+          break;
+        case 'KeyS':
+        case 'ArrowDown':
+          data.input.backward = false;
+          break;
+        case 'KeyA':
+        case 'ArrowLeft':
+          data.input.left = false;
+          break;
+        case 'KeyD':
+        case 'ArrowRight':
+          data.input.right = false;
+          break;
         case 'KeyF': data.input.shoot = false; break;
         case 'Space': data.input.jump = false; break;
         case 'ShiftLeft': data.input.sprint = false; break;
@@ -318,27 +336,12 @@ export default function Game({
     
     startNewWave(1);
 
-
     const clock = new THREE.Clock();
     const animate = () => {
       gameLoopRef.current = requestAnimationFrame(animate);
       if (gameState !== 'playing' || !data.renderer) return;
 
       const delta = clock.getDelta();
-      
-      const lookSpeed = 1.5 * delta;
-      if (data.input.lookUp) {
-        data.camera.rotation.x = THREE.MathUtils.clamp(data.camera.rotation.x + lookSpeed, -Math.PI / 2, Math.PI / 2);
-      }
-      if (data.input.lookDown) {
-        data.camera.rotation.x = THREE.MathUtils.clamp(data.camera.rotation.x - lookSpeed, -Math.PI / 2, Math.PI / 2);
-      }
-      if (data.input.lookLeft) {
-        data.player.rotation.y += lookSpeed;
-      }
-      if (data.input.lookRight) {
-        data.player.rotation.y -= lookSpeed;
-      }
 
       const baseSpeed = 8.0;
       const sprintSpeed = 12.0;
@@ -391,27 +394,27 @@ export default function Game({
           const currentCollider = new THREE.Box3().setFromObject(data.player);
 
           if (currentCollider.intersectsBox(obstacleCollider)) {
-              if (prevPosition.y >= obstacleCollider.max.y && data.playerVelocity.y <= 0) {
+              const penetration = new THREE.Vector3();
+              currentCollider.getCenter(penetration).sub(obstacleCollider.getCenter(new THREE.Vector3()));
+      
+              const playerSize = currentCollider.getSize(new THREE.Vector3());
+              const obstacleSize = obstacleCollider.getSize(new THREE.Vector3());
+      
+              const overlapX = (playerSize.x + obstacleSize.x) / 2 - Math.abs(penetration.x);
+              const overlapZ = (playerSize.z + obstacleSize.z) / 2 - Math.abs(penetration.z);
+              
+              const wasOnTop = prevPosition.y >= obstacleCollider.max.y;
+
+              if (wasOnTop && data.playerVelocity.y <= 0) {
                   data.player.position.y = obstacleCollider.max.y + playerHeight / 2;
                   data.playerVelocity.y = 0;
                   data.onGround = true;
-              } else { 
-                  const penetration = new THREE.Vector3();
-                  currentCollider.getCenter(penetration).sub(obstacleCollider.getCenter(new THREE.Vector3()));
-          
-                  const playerSize = currentCollider.getSize(new THREE.Vector3());
-                  const obstacleSize = obstacleCollider.getSize(new THREE.Vector3());
-          
-                  const overlapX = (playerSize.x + obstacleSize.x) / 2 - Math.abs(penetration.x);
-                  const overlapZ = (playerSize.z + obstacleSize.z) / 2 - Math.abs(penetration.z);
-                  
-                  if (overlapX < overlapZ) {
-                      data.player.position.x += penetration.x > 0 ? overlapX : -overlapX;
-                      data.playerVelocity.x = 0;
-                  } else {
-                      data.player.position.z += penetration.z > 0 ? overlapZ : -overlapZ;
-                      data.playerVelocity.z = 0;
-                  }
+              } else if (overlapX < overlapZ) {
+                  data.player.position.x += penetration.x > 0 ? overlapX : -overlapX;
+                  data.playerVelocity.x = 0;
+              } else {
+                  data.player.position.z += penetration.z > 0 ? overlapZ : -overlapZ;
+                  data.playerVelocity.z = 0;
               }
           }
       });

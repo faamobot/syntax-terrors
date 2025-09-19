@@ -370,13 +370,9 @@ export default function Game({
 
     document.addEventListener('pointerlockchange', onPointerLockChange, false);
     document.addEventListener('pointerlockerror', onPointerLockError, false);
-
-    if (gameState === 'playing') {
-      if (document.pointerLockElement !== mountRef.current) {
-        mountRef.current?.requestPointerLock();
-      }
-    } else {
-      if (document.pointerLockElement === mountRef.current) {
+    
+    if (gameState !== 'playing') {
+       if (document.pointerLockElement === mountRef.current) {
         document.exitPointerLock();
       }
     }

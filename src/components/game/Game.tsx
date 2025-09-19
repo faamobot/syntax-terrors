@@ -479,7 +479,6 @@ export default function Game({
     data.camera.getWorldDirection(rayDirection);
     raycaster.set(data.camera.position, rayDirection);
   
-    // Check for hits against all scene objects
     const intersects = raycaster.intersectObjects(data.scene.children, true);
   
     if (intersects.length > 0) {
@@ -497,10 +496,9 @@ export default function Game({
           current = current.parent;
         }
     
-        // If we found a valid zombie, apply damage and break the loop
         if (targetZombie) {
           applyDamage(targetZombie, bulletDamage);
-          break; 
+          break; // only hit the first zombie
         }
       }
     }
@@ -521,7 +519,7 @@ export default function Game({
   
     data.scene.add(bullet);
     data.bullets.push(bullet);
-  }, [applyDamage, playSound, currentWeapon, specialAmmo, setSpecialAmmo, setCurrentWeapon, gameData.current.baseBulletDamage, gameData.current.scene]);
+  }, [applyDamage, playSound, currentWeapon, specialAmmo, setSpecialAmmo, setCurrentWeapon, gameData]);
 
   useEffect(() => {
     if (gameState === 'playing' && !audioContextRef.current) {

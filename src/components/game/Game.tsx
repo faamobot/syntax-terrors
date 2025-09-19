@@ -476,30 +476,32 @@ export default function Game({
     // Step 1: Raycast to see what we hit
     const raycaster = new THREE.Raycaster();
     const rayDirection = new THREE.Vector3();
-    // THE CRITICAL FIX: Use the correct `rayDirection` vector
     data.camera.getWorldDirection(rayDirection);
     raycaster.set(data.camera.position, rayDirection);
   
-    // Check for hits against zombies
-    const intersects = raycaster.intersectObjects(data.zombies, true);
+    // Check for hits against all scene objects
+    const intersects = raycaster.intersectObjects(data.scene.children, true);
   
     if (intersects.length > 0) {
-      let hitObject = intersects[0].object;
-      let targetZombie: Zombie | null = null;
-  
-      // Traverse up to find the main zombie group if a part was hit
-      let current: THREE.Object3D | null = hitObject;
-      while (current) {
-        if ((current as any).isZombie) {
-          targetZombie = current as Zombie;
-          break;
+      for (const intersect of intersects) {
+        let hitObject = intersect.object;
+        let targetZombie: Zombie | null = null;
+    
+        // Traverse up to find the main zombie group if a part was hit
+        let current: THREE.Object3D | null = hitObject;
+        while (current) {
+          if ((current as any).isZombie) {
+            targetZombie = current as Zombie;
+            break;
+          }
+          current = current.parent;
         }
-        current = current.parent;
-      }
-  
-      // If we found a valid zombie, apply damage
-      if (targetZombie) {
-        applyDamage(targetZombie, bulletDamage);
+    
+        // If we found a valid zombie, apply damage and break the loop
+        if (targetZombie) {
+          applyDamage(targetZombie, bulletDamage);
+          break; 
+        }
       }
     }
   
@@ -508,7 +510,6 @@ export default function Game({
     const bulletGeometry = new THREE.SphereGeometry(0.1, 8, 8);
     const bullet = new THREE.Mesh(bulletGeometry, bulletMaterial) as Bullet;
   
-    // Use a fresh vector for the bullet's movement
     const bulletVelocityVector = new THREE.Vector3();
     data.camera.getWorldDirection(bulletVelocityVector);
   
@@ -520,7 +521,7 @@ export default function Game({
   
     data.scene.add(bullet);
     data.bullets.push(bullet);
-  }, [applyDamage, playSound, currentWeapon, specialAmmo, setSpecialAmmo, setCurrentWeapon, gameData.current.baseBulletDamage]);
+  }, [applyDamage, playSound, currentWeapon, specialAmmo, setSpecialAmmo, setCurrentWeapon, gameData.current.baseBulletDamage, gameData.current.scene]);
 
   useEffect(() => {
     if (gameState === 'playing' && !audioContextRef.current) {

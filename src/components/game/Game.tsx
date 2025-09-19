@@ -415,10 +415,9 @@ export default function Game({
 
     setScore(s => s + 100 + bonus);
 
-    const newRemaining = newZombies.length;
-    setZombiesRemaining(newRemaining);
+    setZombiesRemaining(newZombies.length);
 
-    if (newRemaining <= 0) {
+    if (newZombies.length <= 0) {
       setWave(w => {
         const nextWave = w + 1;
         startNewWave(nextWave);
@@ -516,7 +515,7 @@ export default function Game({
           applyDamage(targetZombie, bulletDamage);
       }
     }
-  }, [applyDamage, playSound, currentWeapon, specialAmmo, setSpecialAmmo, setCurrentWeapon, data.baseBulletDamage]);
+  }, [applyDamage, playSound, currentWeapon, specialAmmo, setSpecialAmmo, setCurrentWeapon]);
 
   useEffect(() => {
     if (gameState === 'playing' && !audioContextRef.current) {

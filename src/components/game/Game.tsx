@@ -419,9 +419,13 @@ export default function Game({
     setZombiesRemaining(newRemaining);
 
     if (newRemaining <= 0) {
-        setWave(w => w + 1);
+      setWave(w => {
+        const nextWave = w + 1;
+        startNewWave(nextWave);
+        return nextWave;
+      });
     }
-  }, [setScore, setZombiesRemaining, setWave, playSound, setPlayerMessage, setSpecialAmmo]);
+  }, [setScore, setZombiesRemaining, setWave, playSound, setPlayerMessage, setSpecialAmmo, startNewWave]);
   
   const applyDamage = useCallback((zombie: Zombie, damage: number) => {
     playSound('zombieDamage');
@@ -460,7 +464,7 @@ export default function Game({
         setCurrentWeapon('standard'); // Auto-switch back
         return; // Don't shoot
       }
-      bulletDamage = 100;
+      bulletDamage = 25;
       bulletColor = 0xffa500; // Orange for special
       setSpecialAmmo(sa => sa - 1);
     } else {
@@ -524,8 +528,8 @@ export default function Game({
 
 
   useEffect(() => {
-    if (wave > 0 && gameState === 'playing' && zombiesRemaining === 0) {
-      startNewWave(wave);
+    if (wave === 1 && gameState === 'playing' && zombiesRemaining === 0) {
+      startNewWave(1);
     }
   }, [wave, gameState, zombiesRemaining, startNewWave]);
 

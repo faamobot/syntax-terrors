@@ -346,11 +346,13 @@ export default function Game({
         const zombie = createHumanoidZombie(zombieData.type) as Zombie;
         
         let position: THREE.Vector3;
+        let tries = 0;
         do {
             const x = (Math.random() - 0.5) * (ARENA_SIZE - 6);
             const z = (Math.random() - 0.5) * (ARENA_SIZE - 6);
             position = new THREE.Vector3(x, 1.2, z);
-        } while (!isPositionValid(position));
+            tries++;
+        } while (!isPositionValid(position) && tries < 50);
         
         zombie.position.copy(position);
         
@@ -418,17 +420,10 @@ export default function Game({
 
     setScore(s => s + 100 + bonus);
     
-    // This state update must be synchronous to correctly check the wave end condition
+    // Update state and then check for wave end in a useEffect
     setZombiesRemaining(newZombies.length);
 
-    if (newZombies.length <= 0) {
-      setWave(w => {
-        const nextWave = w + 1;
-        startNewWave(nextWave);
-        return nextWave;
-      });
-    }
-  }, [setScore, setZombiesRemaining, setWave, playSound, setPlayerMessage, setSpecialAmmo, startNewWave]);
+  }, [setScore, setZombiesRemaining, playSound, setPlayerMessage, setSpecialAmmo]);
   
   const applyDamage = useCallback((zombie: Zombie, damage: number) => {
     playSound('zombieDamage');
@@ -462,17 +457,19 @@ export default function Game({
     data.lastShotTime = time;
 
     let bulletColor: number;
-    
-    // Check for special ammo first
+    let bulletDamage: number;
+
     if (currentWeapon === 'special') {
       if (specialAmmo <= 0) {
-        setCurrentWeapon('standard'); // Auto-switch back, but don't shoot this frame
+        setCurrentWeapon('standard');
         return;
       }
       bulletColor = 0x00ff00; // Green
+      bulletDamage = 25;
       setSpecialAmmo(sa => sa - 1);
     } else {
       bulletColor = 0xffff00; // Yellow
+      bulletDamage = data.baseBulletDamage;
     }
 
     playSound('shoot');
@@ -482,13 +479,13 @@ export default function Game({
     const bulletGeometry = new THREE.SphereGeometry(0.1, 8, 8);
     const bullet = new THREE.Mesh(bulletGeometry, bulletMaterial) as Bullet;
     
-    const vector = new THREE.Vector3();
-    data.camera.getWorldDirection(vector);
+    const shootDirection = new THREE.Vector3();
+    data.camera.getWorldDirection(shootDirection);
 
-    bullet.position.copy(data.player.position).add(vector.multiplyScalar(0.8));
+    bullet.position.copy(data.player.position).add(shootDirection.clone().multiplyScalar(0.8));
     bullet.position.y += 1.5;
 
-    bullet.velocity = vector.clone().multiplyScalar(150);
+    bullet.velocity = shootDirection.clone().multiplyScalar(150);
     bullet.spawnTime = time;
 
     data.scene.add(bullet);
@@ -497,7 +494,7 @@ export default function Game({
     // Raycast for hit detection
     const raycaster = new THREE.Raycaster(
         data.camera.position,
-        vector // Use the same direction vector
+        shootDirection // Use the clean direction vector for the raycast
     );
     
     const intersects = raycaster.intersectObjects(data.zombies, true);
@@ -517,9 +514,7 @@ export default function Game({
         }
 
         if (targetZombie) {
-            // Determine damage based on weapon type AFTER confirming a hit
-            const damage = currentWeapon === 'special' ? 25 : data.baseBulletDamage;
-            applyDamage(targetZombie, damage);
+            applyDamage(targetZombie, bulletDamage);
         }
     }
   }, [applyDamage, playSound, currentWeapon, specialAmmo, setSpecialAmmo, setCurrentWeapon, gameData]);
@@ -540,6 +535,16 @@ export default function Game({
     }
   }, [wave, gameState, zombiesRemaining, startNewWave]);
 
+  useEffect(() => {
+    // This effect runs after a zombie is despawned and zombiesRemaining is updated.
+    if (gameState === 'playing' && zombiesRemaining === 0 && wave > 0) {
+      setWave(w => {
+        const nextWave = w + 1;
+        startNewWave(nextWave);
+        return nextWave;
+      });
+    }
+  }, [zombiesRemaining, gameState, wave, setWave, startNewWave]);
 
   useEffect(() => {
     if (!mountRef.current) return;
@@ -693,19 +698,26 @@ export default function Game({
 
     // Watchtowers
     const createWatchtower = (position: THREE.Vector3) => {
+        // Legs
         for (let i = 0; i < 4; i++) {
-            const leg = createObstacle(new THREE.Vector3(), new THREE.Vector3(0.5, 6, 0.5), darkWoodMaterial);
-            leg.position.set(position.x + (i % 2 === 0 ? -2 : 2), position.y - 3, position.z + (i < 2 ? -2 : 2));
+            const legGeo = new THREE.BoxGeometry(0.5, 6, 0.5);
+            const leg = new THREE.Mesh(legGeo, darkWoodMaterial);
+            leg.position.set(position.x + (i % 2 === 0 ? -2 : 2), 3, position.z + (i < 2 ? -2 : 2));
+            leg.castShadow = true;
+            leg.receiveShadow = true;
+            data.scene.add(leg);
+            data.obstacles.push(leg);
         }
+        // Platform
         const platform = new THREE.Mesh(new THREE.BoxGeometry(5, 0.5, 5), darkWoodMaterial);
-        platform.position.set(position.x, position.y + 0.25, position.z);
+        platform.position.set(position.x, 6.25, position.z);
         platform.castShadow = true;
         platform.receiveShadow = true;
         data.scene.add(platform);
         data.obstacles.push(platform);
     }
-    createWatchtower(new THREE.Vector3(40, 3, 40));
-    createWatchtower(new THREE.Vector3(-40, 3, -40));
+    createWatchtower(new THREE.Vector3(40, 0, 40));
+    createWatchtower(new THREE.Vector3(-40, 0, -40));
 
     // Jersey barriers for cover
     const barrierGeo = new THREE.BoxGeometry(2, 1.5, 6);
@@ -844,63 +856,70 @@ export default function Game({
       
       data.playerVelocity.y -= 20.0 * delta; 
       
-      // Separate axis collision detection
       const playerCollider = new THREE.Box3().setFromObject(data.player);
       const playerHeight = (playerCollider.max.y - playerCollider.min.y);
 
-      // Vertical collision
-      data.player.position.y += data.playerVelocity.y * delta;
+      // Vertical movement and collision
+      const verticalDelta = data.playerVelocity.y * delta;
+      data.player.position.y += verticalDelta;
       data.onGround = false;
+      
+      let correctedY = false;
 
+      data.obstacles.forEach(obstacle => {
+          if (correctedY) return;
+          const obstacleCollider = new THREE.Box3().setFromObject(obstacle);
+          const currentCollider = new THREE.Box3().setFromObject(data.player);
+
+          if (currentCollider.intersectsBox(obstacleCollider)) {
+            // Player is moving downwards
+            if (data.playerVelocity.y <= 0) {
+              // Check if the player was sufficiently above the obstacle in the previous frame
+              const prevPlayerBottom = data.player.position.y - verticalDelta + playerHeight / 2 - 1; // player's feet
+              if (prevPlayerBottom >= obstacleCollider.max.y) {
+                 data.player.position.y = obstacleCollider.max.y + playerHeight / 2 - 1;
+                 data.playerVelocity.y = 0;
+                 data.onGround = true;
+                 correctedY = true;
+              }
+            } else { // Player is moving upwards
+                data.player.position.y -= verticalDelta; // Revert
+                data.playerVelocity.y = 0; // Hit ceiling
+                correctedY = true;
+            }
+          }
+      });
+      
       if (data.player.position.y < playerHeight / 2) {
           data.player.position.y = playerHeight / 2;
           data.playerVelocity.y = 0;
           data.onGround = true;
       }
 
-      data.obstacles.forEach(obstacle => {
-          const obstacleCollider = new THREE.Box3().setFromObject(obstacle);
-          const currentCollider = new THREE.Box3().setFromObject(data.player);
-
-          if (currentCollider.intersectsBox(obstacleCollider)) {
-            const penetration = new THREE.Vector3();
-            currentCollider.getCenter(penetration).sub(obstacleCollider.getCenter(new THREE.Vector3()));
-            
-            // Check vertical collision (landing on top)
-            if (data.playerVelocity.y <= 0 && penetration.y > 0 && Math.abs(penetration.y) > Math.abs(penetration.x) && Math.abs(penetration.y) > Math.abs(penetration.z)) {
-              data.player.position.y = obstacleCollider.max.y + playerHeight / 2;
-              data.playerVelocity.y = 0;
-              data.onGround = true;
-            }
-          }
-      });
+      // Horizontal movement and collision
+      const horizontalDeltaX = data.playerVelocity.x * delta;
+      const horizontalDeltaZ = data.playerVelocity.z * delta;
       
-      // Horizontal collision
-      data.player.position.x += data.playerVelocity.x * delta;
-      data.player.position.z += data.playerVelocity.z * delta;
-
+      data.player.position.x += horizontalDeltaX;
       data.obstacles.forEach(obstacle => {
         const obstacleCollider = new THREE.Box3().setFromObject(obstacle);
         const currentCollider = new THREE.Box3().setFromObject(data.player);
         if (currentCollider.intersectsBox(obstacleCollider)) {
-            const penetration = new THREE.Vector3();
-            currentCollider.getCenter(penetration).sub(obstacleCollider.getCenter(new THREE.Vector3()));
-
-            const playerSize = currentCollider.getSize(new THREE.Vector3());
-            const obstacleSize = obstacleCollider.getSize(new THREE.Vector3());
-
-            const overlapX = (playerSize.x + obstacleSize.x) / 2 - Math.abs(penetration.x);
-            const overlapZ = (playerSize.z + obstacleSize.z) / 2 - Math.abs(penetration.z);
-
-            if (overlapX < overlapZ) {
-                data.player.position.x += penetration.x > 0 ? overlapX : -overlapX;
-                data.playerVelocity.x = 0;
-            } else {
-                data.player.position.z += penetration.z > 0 ? overlapZ : -overlapZ;
-                data.playerVelocity.z = 0;
-            }
+          data.player.position.x -= horizontalDeltaX; // Revert X
+          data.playerVelocity.x = 0;
         }
       });
+
+      data.player.position.z += horizontalDeltaZ;
+      data.obstacles.forEach(obstacle => {
+        const obstacleCollider = new THREE.Box3().setFromObject(obstacle);
+        const currentCollider = new THREE.Box3().setFromObject(data.player);
+        if (currentCollider.intersectsBox(obstacleCollider)) {
+          data.player.position.z -= horizontalDeltaZ; // Revert Z
+          data.playerVelocity.z = 0;
+        }
+      });
+      
 
       const playerRadius = 0.5;
       const halfSize = ARENA_SIZE / 2 - playerRadius;

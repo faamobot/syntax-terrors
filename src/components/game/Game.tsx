@@ -158,11 +158,14 @@ export default function Game({
     data.scene.remove(zombie);
     data.zombies = data.zombies.filter(z => z !== zombie);
     setScore(s => s + 100);
-    setZombiesRemaining(r => r - 1);
-
-    if (data.zombies.length === 0 && !data.waveInProgress) {
-      startNewWave();
-    }
+    setZombiesRemaining(r => {
+      const newRemaining = r - 1;
+      if (newRemaining <= 0 && !data.waveInProgress) {
+        // Use a timeout to give a small break before the next wave
+        setTimeout(() => startNewWave(), 1000);
+      }
+      return newRemaining;
+    });
   }, [setScore, startNewWave, setZombiesRemaining]);
 
   const applyDamage = useCallback((zombie: Zombie, damage: number) => {
@@ -272,14 +275,22 @@ export default function Game({
 
     const handleKeyDown = (e: KeyboardEvent) => {
       switch (e.code) {
-        case 'KeyW': data.input.forward = true; break;
-        case 'KeyS': data.input.backward = true; break;
-        case 'KeyA': data.input.left = true; break;
-        case 'KeyD': data.input.right = true; break;
-        case 'ArrowUp': data.input.lookUp = true; break;
-        case 'ArrowDown': data.input.lookDown = true; break;
-        case 'ArrowLeft': data.input.lookLeft = true; break;
-        case 'ArrowRight': data.input.lookRight = true; break;
+        case 'KeyW':
+        case 'ArrowUp':
+          data.input.forward = true;
+          break;
+        case 'KeyS':
+        case 'ArrowDown':
+          data.input.backward = true;
+          break;
+        case 'KeyA':
+        case 'ArrowLeft':
+          data.input.left = true;
+          break;
+        case 'KeyD':
+        case 'ArrowRight':
+          data.input.right = true;
+          break;
         case 'KeyF': data.input.shoot = true; break;
         case 'Space': data.input.jump = true; break;
         case 'ShiftLeft': data.input.sprint = true; break;
@@ -287,14 +298,22 @@ export default function Game({
     };
     const handleKeyUp = (e: KeyboardEvent) => {
        switch (e.code) {
-        case 'KeyW': data.input.forward = false; break;
-        case 'KeyS': data.input.backward = false; break;
-        case 'KeyA': data.input.left = false; break;
-        case 'KeyD': data.input.right = false; break;
-        case 'ArrowUp': data.input.lookUp = false; break;
-        case 'ArrowDown': data.input.lookDown = false; break;
-        case 'ArrowLeft': data.input.lookLeft = false; break;
-        case 'ArrowRight': data.input.lookRight = false; break;
+        case 'KeyW':
+        case 'ArrowUp':
+          data.input.forward = false;
+          break;
+        case 'KeyS':
+        case 'ArrowDown':
+          data.input.backward = false;
+          break;
+        case 'KeyA':
+        case 'ArrowLeft':
+          data.input.left = false;
+          break;
+        case 'KeyD':
+        case 'ArrowRight':
+          data.input.right = false;
+          break;
         case 'KeyF': data.input.shoot = false; break;
         case 'Space': data.input.jump = false; break;
         case 'ShiftLeft': data.input.sprint = false; break;
@@ -339,17 +358,6 @@ export default function Game({
       if (data.input.left) moveDirection.x -= 1;
       if (data.input.right) moveDirection.x += 1;
       
-      const cameraTurnSpeed = 2;
-      if (data.input.lookLeft) data.player.rotation.y += cameraTurnSpeed * delta;
-      if (data.input.lookRight) data.player.rotation.y -= cameraTurnSpeed * delta;
-      
-      const currentPitch = data.camera.rotation.x;
-      let newPitch = currentPitch;
-      if (data.input.lookUp) newPitch += cameraTurnSpeed * delta;
-      if (data.input.lookDown) newPitch -= cameraTurnSpeed * delta;
-      data.camera.rotation.x = THREE.MathUtils.clamp(newPitch, -Math.PI/2, Math.PI/2);
-
-
       const playerSpeed = data.onGround ? currentSpeed : currentSpeed * 0.3;
       if (moveDirection.lengthSq() > 0) {
         moveDirection.normalize().applyQuaternion(data.player.quaternion);
@@ -364,7 +372,7 @@ export default function Game({
         handleShoot();
       }
       if (data.input.jump && data.onGround) {
-        data.playerVelocity.y = 8.0; // Jump force
+        data.playerVelocity.y = 10.0; // Jump force
         data.onGround = false;
       }
       

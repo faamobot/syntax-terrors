@@ -28,13 +28,6 @@ export default function Home() {
     if (storedHighScore) {
       setHighScore(parseInt(storedHighScore, 10));
     }
-    
-    const preventContextMenu = (e: MouseEvent) => e.preventDefault();
-    document.addEventListener('contextmenu', preventContextMenu);
-
-    return () => {
-      document.removeEventListener('contextmenu', preventContextMenu);
-    };
   }, []);
 
   const handleTakeDamage = useCallback(() => {

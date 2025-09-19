@@ -102,6 +102,9 @@ export default function Game({
   onTakeDamage,
   setWaveMessage,
   wave,
+  health,
+  score,
+  zombiesRemaining,
   toast,
   containerRef,
 }: GameProps) {

@@ -92,14 +92,14 @@ export default function Game({
     if (gameData.current.waveInProgress) return;
     gameData.current.waveInProgress = true;
     
-    const currentWave = wave + 1; // Use the upcoming wave number
+    const currentWave = wave + 1;
     setWave(currentWave);
     
     try {
       const waveData = await generateZombieWave({
         waveNumber: currentWave,
         playerScore: score,
-        timeSurvived: 0, // Simplified for hackathon
+        timeSurvived: 0, 
         playerHealth: health,
       });
       
@@ -122,8 +122,13 @@ export default function Game({
           gameData.current.zombies.push(zombie);
       }
       
-      // Wave is in progress as long as there are zombies
-      gameData.current.waveInProgress = waveData.zombieCount > 0;
+      if (waveData.zombieCount === 0) {
+        gameData.current.waveInProgress = false;
+        // If the API for some reason returns 0 zombies for a later wave, immediately try to start the next one.
+        // This prevents the game from getting stuck.
+        startNewWave();
+      }
+      
     } catch (e) {
       console.error("Failed to generate zombie wave:", e);
       toast({
@@ -147,7 +152,6 @@ export default function Game({
     data.renderer.shadowMap.enabled = true;
     mount.appendChild(data.renderer.domElement);
 
-    data.camera.position.z = 5;
     data.camera.position.y = 1.6;
 
     data.player.position.y = 1;
@@ -171,7 +175,6 @@ export default function Game({
     floor.receiveShadow = true;
     data.scene.add(floor);
     
-    // Walls
     const wallMaterial = new THREE.MeshStandardMaterial({ color: 0x444444 });
     const wallY = 2.5;
     const wallDepth = 1;
@@ -190,7 +193,6 @@ export default function Game({
     wall4.position.x = halfArena; wall4.position.y = wallY; wall4.receiveShadow = true;
     data.scene.add(wall4);
 
-    // Obstacles
     const obstacleGeometries = [
       new THREE.SphereGeometry(2, 16, 16),
       new THREE.ConeGeometry(2, 4, 16),
@@ -245,7 +247,7 @@ export default function Game({
         case 'KeyA': data.input.left = false; break;
         case 'KeyD': data.input.right = false; break;
         case 'ArrowUp': data.input.arrowUp = false; break;
-        case 'ArrowDown': data.input.arrowDown = false; break;
+        case 'ArrowDown': data.input.arrowDown = true; break;
         case 'ArrowLeft': data.input.arrowLeft = false; break;
         case 'ArrowRight': data.input.arrowRight = false; break;
       }
@@ -261,7 +263,7 @@ export default function Game({
       if (gameState !== 'playing' || data.input.reloading || ammo <= 0 || document.pointerLockElement !== containerRef.current) return;
       
       const time = performance.now();
-      if (time - data.lastShotTime < 200) return; // Fire rate
+      if (time - data.lastShotTime < 200) return; 
       data.lastShotTime = time;
 
       setAmmo(prev => prev - 1);
@@ -272,11 +274,16 @@ export default function Game({
       const intersects = raycaster.intersectObjects(data.zombies);
       if (intersects.length > 0) {
         const zombie = intersects[0].object as Zombie;
-        zombie.health -= 50; // Damage
+        zombie.health -= 50; 
         if (zombie.health <= 0) {
           data.scene.remove(zombie);
           data.zombies = data.zombies.filter(z => z !== zombie);
           setScore(s => s + 100);
+
+          if (data.zombies.length === 0) {
+            data.waveInProgress = false;
+            startNewWave();
+          }
         }
       }
     };
@@ -293,30 +300,7 @@ export default function Game({
     document.addEventListener('mousedown', handleMouseDown);
     window.addEventListener('resize', handleResize);
     
-    // Initial "wave" to set things up (will spawn 0 zombies)
-    (async () => {
-      setWave(0);
-      try {
-        const waveData = await generateZombieWave({
-            waveNumber: 0,
-            playerScore: 0,
-            timeSurvived: 0,
-            playerHealth: 100,
-        });
-        if(waveData.messageToPlayer) {
-            setWaveMessage(waveData.messageToPlayer);
-            setTimeout(() => setWaveMessage(''), 4000);
-        }
-        gameData.current.waveInProgress = false; // Wave 0 has no zombies
-      } catch(e) {
-         console.error("Failed to generate initial wave:", e);
-         toast({
-          title: "Error",
-          description: "Could not start the game. Please try refreshing.",
-          variant: "destructive",
-        });
-      }
-    })();
+    startNewWave();
 
 
     const clock = new THREE.Clock();
@@ -338,7 +322,6 @@ export default function Game({
         data.playerVelocity.add(moveDirection.multiplyScalar(speed * delta));
       }
       
-      // Arrow key camera controls
       const rotationSpeed = 1.5 * delta;
       if (data.input.arrowLeft) data.player.rotation.y += rotationSpeed;
       if (data.input.arrowRight) data.player.rotation.y -= rotationSpeed;
@@ -352,14 +335,12 @@ export default function Game({
       }
 
       data.player.position.add(data.playerVelocity);
-      data.playerVelocity.multiplyScalar(1 - 10 * delta); // friction
+      data.playerVelocity.multiplyScalar(1 - 10 * delta); 
 
-      // Clamp player position
       const halfSize = ARENA_SIZE / 2 - 1;
       data.player.position.x = THREE.MathUtils.clamp(data.player.position.x, -halfSize, halfSize);
       data.player.position.z = THREE.MathUtils.clamp(data.player.position.z, -halfSize, halfSize);
 
-      // Zombie AI
       data.zombies.forEach(zombie => {
         zombie.lookAt(data.player.position);
         const distance = zombie.position.distanceTo(data.player.position);
@@ -367,7 +348,7 @@ export default function Game({
             zombie.translateZ(zombie.speed);
         } else {
             const time = performance.now();
-            if (time - data.lastDamageTime > 1000) { // 1 sec cooldown
+            if (time - data.lastDamageTime > 1000) { 
                 data.lastDamageTime = time;
                 setHealth(h => Math.max(0, h - 10));
                 onTakeDamage();
@@ -375,17 +356,8 @@ export default function Game({
         }
       });
       
-      // Game over check
-      if(health <= 10) { // accounting for the state update delay
+      if(health <= 10) { 
         onGameOver();
-      }
-
-      // Wave cleared check
-      if (data.zombies.length === 0 && data.waveInProgress) {
-        gameData.current.waveInProgress = false;
-      }
-      if (data.zombies.length === 0 && !data.waveInProgress) {
-        startNewWave();
       }
 
       data.renderer.render(data.scene, data.camera);
@@ -432,10 +404,6 @@ export default function Game({
     document.addEventListener('pointerlockchange', onPointerLockChange, false);
     document.addEventListener('pointerlockerror', onPointerLockError, false);
     
-    // We no longer automatically request pointer lock here.
-    // It is now handled by a direct click in page.tsx.
-    
-    // We do handle exiting pointer lock when the game is not playing.
     if (gameState !== 'playing' && document.pointerLockElement === containerRef.current) {
         document.exitPointerLock();
     }

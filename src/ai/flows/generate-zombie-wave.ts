@@ -55,7 +55,7 @@ const prompt = ai.definePrompt({
   - zombieCount: How many zombies should spawn this wave? Start with 0 zombies for wave 0. For wave 1, spawn a small number (e.g., 3-5). Increase it with each subsequent wave. The increase should be more significant in later waves.
   - zombieSpeedMultiplier: How fast should the zombies be? Keep it at 1.0 for the first few waves, then increase it gradually.
   - zombieHealthMultiplier: How much health should the zombies have? Keep it at 1.0 for the first few waves, then increase it gradually.
-  - messageToPlayer: For wave 0, the message should be empty. For wave 1, it should be something like "Here they come!". For later waves, provide a short, encouraging or taunting message.
+  - messageToPlayer: For wave 0, the message should be an empty string. For wave 1, it should be something like "Wave 1: Here they come!". For later waves, provide a short, encouraging or taunting message that includes the wave number, like "Wave 2: A few more for you!".
 
   Ensure the difficulty curve is smooth. The first few waves should be easy, and the challenge should ramp up.
 
@@ -69,6 +69,16 @@ const generateZombieWaveFlow = ai.defineFlow(
     outputSchema: GenerateZombieWaveOutputSchema,
   },
   async input => {
+    // If wave number is 0, return a specific hardcoded response.
+    if (input.waveNumber === 0) {
+      return {
+        zombieCount: 0,
+        zombieSpeedMultiplier: 1.0,
+        zombieHealthMultiplier: 1.0,
+        messageToPlayer: "",
+      };
+    }
+    
     const {output} = await prompt(input);
     return output!;
   }

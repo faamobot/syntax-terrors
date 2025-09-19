@@ -51,6 +51,7 @@ export default function Home() {
     setIsReloading(false);
     setGameState('playing');
     setWaveMessage('');
+    document.body.requestPointerLock();
   };
 
   const pauseGame = useCallback(() => {

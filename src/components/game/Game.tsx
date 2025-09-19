@@ -56,7 +56,7 @@ export default function Game({
     renderer: null as THREE.WebGLRenderer | null,
     player: new THREE.Mesh(
       new THREE.CapsuleGeometry(0.5, 1),
-      new THREE.MeshStandardMaterial({ color: 0xeeeeee })
+      new THREE.MeshStandardMaterial({ color: 0xeeeeee, visible: false })
     ),
     zombies: [] as Zombie[],
     bullets: [] as THREE.Mesh[],
@@ -81,8 +81,8 @@ export default function Game({
     if (gameData.current.waveInProgress) return;
     gameData.current.waveInProgress = true;
     
-    setWave(w => w + 1);
     const currentWave = wave + 1; // Use the upcoming wave number
+    setWave(currentWave);
     
     const waveData = await generateZombieWave({
       waveNumber: currentWave,
@@ -111,10 +111,8 @@ export default function Game({
         gameData.current.zombies.push(zombie);
     }
     
-    if (waveData.zombieCount === 0) {
-      // If no zombies, we can immediately start the next wave check
-      gameData.current.waveInProgress = false;
-    }
+    // Wave is in progress as long as there are zombies
+    gameData.current.waveInProgress = waveData.zombieCount > 0;
 
   }, [wave, score, health, setWave, setWaveMessage]);
 
@@ -254,6 +252,7 @@ export default function Game({
     
     // Initial "wave" to set things up (will spawn 0 zombies)
     (async () => {
+      setWave(0);
       const waveData = await generateZombieWave({
           waveNumber: 0,
           playerScore: 0,
@@ -264,6 +263,7 @@ export default function Game({
           setWaveMessage(waveData.messageToPlayer);
           setTimeout(() => setWaveMessage(''), 4000);
       }
+      gameData.current.waveInProgress = false; // Wave 0 has no zombies
     })();
 
 
@@ -315,12 +315,16 @@ export default function Game({
       }
 
       // Wave cleared check
-      if (data.zombies.length === 0 && !data.waveInProgress) {
-        startNewWave();
-      } else if (data.zombies.length > 0) {
-        data.waveInProgress = true;
+      if (data.zombies.length === 0 && data.waveInProgress) {
+        gameData.current.waveInProgress = false;
       }
-
+      if (data.zombies.length === 0 && !data.waveInProgress && wave > 0) {
+        startNewWave();
+      }
+      // Special handling for wave 0 to start wave 1
+      if(wave === 0 && data.zombies.length === 0 && !data.waveInProgress) {
+        startNewWave();
+      }
 
       data.renderer.render(data.scene, data.camera);
     };
@@ -329,7 +333,9 @@ export default function Game({
 
     return () => {
       cancelAnimationFrame(gameLoopRef.current || 0);
-      mount.removeChild(data.renderer!.domElement);
+      if (mount.contains(data.renderer!.domElement)) {
+        mount.removeChild(data.renderer!.domElement);
+      }
       data.renderer!.dispose();
 
       document.removeEventListener('pointerlockchange', onPointerLockChange);

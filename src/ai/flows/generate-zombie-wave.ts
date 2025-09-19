@@ -14,7 +14,7 @@ import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 
 const GenerateZombieWaveInputSchema = z.object({
-  waveNumber: z.number().describe('The current wave number.'),
+  waveNumber: z.number().describe('The current wave number. This will be 0 for the very first "wave", which should result in 0 zombies.'),
   playerScore: z.number().describe('The player\'s current score.'),
   timeSurvived: z.number().describe('The time the player has survived in seconds.'),
   playerHealth: z.number().describe('The player\'s current health percentage (0-100).'),
@@ -43,6 +43,8 @@ const prompt = ai.definePrompt({
   output: {schema: GenerateZombieWaveOutputSchema},
   prompt: `You are the AI game director for Zombie Rampage. Your job is to create increasingly challenging waves of zombies based on the player's performance.
 
+  IMPORTANT: For waveNumber 0, you MUST return a zombieCount of 0. This is the start of the game.
+
   Wave Number: {{{waveNumber}}}
   Player Score: {{{playerScore}}}
   Time Survived: {{{timeSurvived}}} seconds
@@ -50,20 +52,14 @@ const prompt = ai.definePrompt({
 
   Based on these factors, determine the following:
 
-  - zombieCount: How many zombies should spawn this wave? Start with a small number and increase it as the waves progress.
-  - zombieSpeedMultiplier: How fast should the zombies be? Increase this gradually as the game progresses. A value of 1 is normal speed.
-  - zombieHealthMultiplier: How much health should the zombies have? Increase this gradually as the game progresses. A value of 1 is normal health.
-  - messageToPlayer: A short, encouraging or taunting message to display to the player at the start of the wave. Make it fun and engaging.
+  - zombieCount: How many zombies should spawn this wave? Start with 0 zombies for wave 0. For wave 1, spawn a small number (e.g., 3-5). Increase it with each subsequent wave. The increase should be more significant in later waves.
+  - zombieSpeedMultiplier: How fast should the zombies be? Keep it at 1.0 for the first few waves, then increase it gradually.
+  - zombieHealthMultiplier: How much health should the zombies have? Keep it at 1.0 for the first few waves, then increase it gradually.
+  - messageToPlayer: For wave 0, the message should be empty. For wave 1, it should be something like "Here they come!". For later waves, provide a short, encouraging or taunting message.
 
-  Ensure the wave is challenging but not impossible based on the player's current state.
+  Ensure the difficulty curve is smooth. The first few waves should be easy, and the challenge should ramp up.
 
-  Output the data as JSON in the following format:
-  {
-    "zombieCount": number,
-    "zombieSpeedMultiplier": number,
-    "zombieHealthMultiplier": number,
-    "messageToPlayer": string
-  }`,
+  Output the data as JSON.`,
 });
 
 const generateZombieWaveFlow = ai.defineFlow(

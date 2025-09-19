@@ -74,11 +74,15 @@ export default function Game({
     
     lastShotTime: 0,
     lastDamageTime: 0,
+    waveInProgress: false,
   });
 
   const startNewWave = useCallback(async () => {
-    const currentWave = wave + 1;
-    setWave(currentWave);
+    if (gameData.current.waveInProgress) return;
+    gameData.current.waveInProgress = true;
+    
+    setWave(w => w + 1);
+    const currentWave = wave + 1; // Use the upcoming wave number
     
     const waveData = await generateZombieWave({
       waveNumber: currentWave,
@@ -87,8 +91,10 @@ export default function Game({
       playerHealth: health,
     });
     
-    setWaveMessage(waveData.messageToPlayer);
-    setTimeout(() => setWaveMessage(''), 4000);
+    if(waveData.messageToPlayer) {
+      setWaveMessage(waveData.messageToPlayer);
+      setTimeout(() => setWaveMessage(''), 4000);
+    }
 
     const arenaSize = 48;
     for (let i = 0; i < waveData.zombieCount; i++) {
@@ -104,6 +110,12 @@ export default function Game({
         gameData.current.scene.add(zombie);
         gameData.current.zombies.push(zombie);
     }
+    
+    if (waveData.zombieCount === 0) {
+      // If no zombies, we can immediately start the next wave check
+      gameData.current.waveInProgress = false;
+    }
+
   }, [wave, score, health, setWave, setWaveMessage]);
 
 
@@ -240,7 +252,20 @@ export default function Game({
     document.addEventListener('mousedown', handleMouseDown);
     window.addEventListener('resize', handleResize);
     
-    startNewWave();
+    // Initial "wave" to set things up (will spawn 0 zombies)
+    (async () => {
+      const waveData = await generateZombieWave({
+          waveNumber: 0,
+          playerScore: 0,
+          timeSurvived: 0,
+          playerHealth: 100,
+      });
+      if(waveData.messageToPlayer) {
+          setWaveMessage(waveData.messageToPlayer);
+          setTimeout(() => setWaveMessage(''), 4000);
+      }
+    })();
+
 
     const clock = new THREE.Clock();
     const animate = () => {
@@ -290,9 +315,12 @@ export default function Game({
       }
 
       // Wave cleared check
-      if (data.zombies.length === 0) {
+      if (data.zombies.length === 0 && !data.waveInProgress) {
         startNewWave();
+      } else if (data.zombies.length > 0) {
+        data.waveInProgress = true;
       }
+
 
       data.renderer.render(data.scene, data.camera);
     };

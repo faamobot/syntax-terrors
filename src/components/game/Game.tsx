@@ -67,10 +67,6 @@ export default function Game({
       shoot: false,
       jump: false,
       sprint: false,
-      arrowUp: false,
-      arrowDown: false,
-      arrowLeft: false,
-      arrowRight: false,
     },
     
     playerVelocity: new THREE.Vector3(),
@@ -274,10 +270,6 @@ export default function Game({
         case 'KeyF': data.input.shoot = true; break;
         case 'Space': data.input.jump = true; break;
         case 'ShiftLeft': data.input.sprint = true; break;
-        case 'ArrowUp': data.input.arrowUp = true; break;
-        case 'ArrowDown': data.input.arrowDown = true; break;
-        case 'ArrowLeft': data.input.arrowLeft = true; break;
-        case 'ArrowRight': data.input.arrowRight = true; break;
       }
     };
     const handleKeyUp = (e: KeyboardEvent) => {
@@ -288,11 +280,7 @@ export default function Game({
         case 'KeyD': data.input.right = false; break;
         case 'KeyF': data.input.shoot = false; break;
         case 'Space': data.input.jump = false; break;
-        case 'ShiftLeft': data.input.sprint = true; break;
-        case 'ArrowUp': data.input.arrowUp = true; break;
-        case 'ArrowDown': data.input.arrowDown = true; break;
-        case 'ArrowLeft': data.input.arrowLeft = true; break;
-        case 'ArrowRight': data.input.arrowRight = true; break;
+        case 'ShiftLeft': data.input.sprint = false; break;
       }
     };
     
@@ -324,8 +312,8 @@ export default function Game({
 
       const delta = clock.getDelta();
       
-      const baseSpeed = 5.0;
-      const sprintSpeed = 10.0;
+      const baseSpeed = 8.0;
+      const sprintSpeed = 12.0;
       const currentSpeed = data.input.sprint ? sprintSpeed : baseSpeed;
 
       const moveDirection = new THREE.Vector3();
@@ -352,25 +340,11 @@ export default function Game({
         data.onGround = false;
       }
       
-      const rotationSpeed = 1.5 * delta;
-      if (data.input.arrowLeft) data.player.rotation.y += rotationSpeed;
-      if (data.input.arrowRight) data.player.rotation.y -= rotationSpeed;
-      if (data.input.arrowUp) {
-        const newPitch = data.camera.rotation.x + rotationSpeed;
-        data.camera.rotation.x = THREE.MathUtils.clamp(newPitch, -Math.PI / 2, Math.PI / 2);
-      }
-      if (data.input.arrowDown) {
-        const newPitch = data.camera.rotation.x - rotationSpeed;
-        data.camera.rotation.x = THREE.MathUtils.clamp(newPitch, -Math.PI / 2, Math.PI / 2);
-      }
-
       // Gravity
       data.playerVelocity.y -= 20.0 * delta; 
       
       const prevPosition = data.player.position.clone();
-      const playerCollider = new THREE.Box3().setFromObject(data.player);
-      const playerHeight = (playerCollider.max.y - playerCollider.min.y);
-
+      
       // Update player position based on velocity
       data.player.position.x += data.playerVelocity.x * delta;
       data.player.position.y += data.playerVelocity.y * delta;
@@ -378,6 +352,8 @@ export default function Game({
 
       // --- Collision Detection and Resolution ---
       data.onGround = false;
+      const playerCollider = new THREE.Box3().setFromObject(data.player);
+      const playerHeight = (playerCollider.max.y - playerCollider.min.y);
       const playerHalfHeight = playerHeight / 2;
       
       // 1. Ground collision
@@ -394,7 +370,7 @@ export default function Game({
 
           if (currentCollider.intersectsBox(obstacleCollider)) {
               // Check for landing on top first
-              if (prevPosition.y >= obstacleCollider.max.y && data.playerVelocity.y <= 0) {
+              if (prevPosition.y >= (obstacleCollider.max.y - 0.1) && data.playerVelocity.y <= 0) {
                   data.player.position.y = obstacleCollider.max.y + playerHalfHeight;
                   data.playerVelocity.y = 0;
                   data.onGround = true;
@@ -448,6 +424,7 @@ export default function Game({
                 const overlapX = (zombieSize.x + obstacleSize.x) / 2 - Math.abs(penetration.x);
                 const overlapZ = (zombieSize.z + obstacleSize.z) / 2 - Math.abs(penetration.z);
 
+                // Simple sidestep logic
                 if (overlapX < overlapZ) {
                     zombie.position.x += (penetration.x > 0 ? 1 : -1) * 0.1;
                 } else {
@@ -544,5 +521,3 @@ export default function Game({
 
   return <div ref={mountRef} className="absolute inset-0 z-0" />;
 }
-
-    

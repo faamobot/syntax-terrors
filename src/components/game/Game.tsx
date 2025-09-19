@@ -452,8 +452,11 @@ export default function Game({
   const handleShoot = useCallback(() => {
     const { current: data } = gameData;
     const time = performance.now();
-    if (time - data.lastShotTime < 200) return;
-
+    
+    // Determine firing rate based on weapon
+    const fireRate = currentWeapon === 'special' ? 400 : 200;
+    if (time - data.lastShotTime < fireRate) return;
+    
     data.lastShotTime = time;
 
     let bulletColor: number;
@@ -462,27 +465,30 @@ export default function Game({
     if (currentWeapon === 'special') {
       if (specialAmmo <= 0) {
         setCurrentWeapon('standard');
-        return;
+        return; // Switch to standard and wait for next input
       }
-      bulletColor = 0x00ff00; // Green
+      bulletColor = 0x00ff00; // Green for special
       bulletDamage = 25;
       setSpecialAmmo(sa => sa - 1);
     } else {
-      bulletColor = 0xffff00; // Yellow
+      bulletColor = 0xffff00; // Yellow for standard
       bulletDamage = data.baseBulletDamage;
     }
 
     playSound('shoot');
+
+    // Get camera direction for both bullet and raycaster
+    const shootDirection = new THREE.Vector3();
+    data.camera.getWorldDirection(shootDirection);
 
     // Visual bullet
     const bulletMaterial = new THREE.MeshBasicMaterial({ color: bulletColor });
     const bulletGeometry = new THREE.SphereGeometry(0.1, 8, 8);
     const bullet = new THREE.Mesh(bulletGeometry, bulletMaterial) as Bullet;
     
-    const shootDirection = new THREE.Vector3();
-    data.camera.getWorldDirection(shootDirection);
-
-    bullet.position.copy(data.player.position).add(shootDirection.clone().multiplyScalar(0.8));
+    // Clone direction vector for bullet position to avoid mutation issues
+    const bulletPositionVector = shootDirection.clone();
+    bullet.position.copy(data.player.position).add(bulletPositionVector.multiplyScalar(0.8));
     bullet.position.y += 1.5;
 
     bullet.velocity = shootDirection.clone().multiplyScalar(150);
@@ -491,10 +497,10 @@ export default function Game({
     data.scene.add(bullet);
     data.bullets.push(bullet);
 
-    // Raycast for hit detection
+    // Raycast for hit detection - using the original, unmodified shootDirection
     const raycaster = new THREE.Raycaster(
         data.camera.position,
-        shootDirection // Use the clean direction vector for the raycast
+        shootDirection
     );
     
     const intersects = raycaster.intersectObjects(data.zombies, true);
@@ -503,7 +509,6 @@ export default function Game({
         let hitObject = intersects[0].object;
         let targetZombie: Zombie | null = null;
         
-        // Find the top-level zombie group
         let current: THREE.Object3D | null = hitObject;
         while (current) {
             if ((current as any).isZombie) {
@@ -517,7 +522,7 @@ export default function Game({
             applyDamage(targetZombie, bulletDamage);
         }
     }
-  }, [applyDamage, playSound, currentWeapon, specialAmmo, setSpecialAmmo, setCurrentWeapon, gameData]);
+  }, [applyDamage, playSound, currentWeapon, specialAmmo, setSpecialAmmo, setCurrentWeapon]);
 
   useEffect(() => {
     if (gameState === 'playing' && !audioContextRef.current) {
@@ -538,11 +543,14 @@ export default function Game({
   useEffect(() => {
     // This effect runs after a zombie is despawned and zombiesRemaining is updated.
     if (gameState === 'playing' && zombiesRemaining === 0 && wave > 0) {
-      setWave(w => {
-        const nextWave = w + 1;
-        startNewWave(nextWave);
-        return nextWave;
-      });
+      const timer = setTimeout(() => {
+        setWave(w => {
+          const nextWave = w + 1;
+          startNewWave(nextWave);
+          return nextWave;
+        });
+      }, 3000); // 3-second delay before starting the next wave
+      return () => clearTimeout(timer);
     }
   }, [zombiesRemaining, gameState, wave, setWave, startNewWave]);
 
@@ -563,7 +571,8 @@ export default function Game({
 
     data.camera.position.y = 1.6;
 
-    data.player.position.y = 1;
+    // Set player's starting position to a safe location
+    data.player.position.set(0, 1, 15);
     data.player.castShadow = true;
     data.player.add(data.camera);
     data.scene.add(data.player);

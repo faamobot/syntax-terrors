@@ -57,6 +57,7 @@ export default function Game({
       new THREE.MeshStandardMaterial({ color: 0xeeeeee, visible: false })
     ),
     zombies: [] as Zombie[],
+    obstacles: [] as THREE.Mesh[],
     
     input: {
       forward: false,
@@ -64,6 +65,7 @@ export default function Game({
       left: false,
       right: false,
       shoot: false,
+      jump: false,
       arrowUp: false,
       arrowDown: false,
       arrowLeft: false,
@@ -71,6 +73,7 @@ export default function Game({
     },
     
     playerVelocity: new THREE.Vector3(),
+    onGround: true,
     
     lastShotTime: 0,
     lastDamageTime: 0,
@@ -135,7 +138,9 @@ export default function Game({
         variant: "destructive",
       });
     } finally {
-        data.waveInProgress = false;
+        setTimeout(() => {
+          data.waveInProgress = false;
+        }, 2000);
     }
 
   }, [wave, setWave, setWaveMessage, toast]);
@@ -154,10 +159,9 @@ export default function Game({
   const applyDamage = useCallback((zombie: Zombie, damage: number) => {
     zombie.health -= damage;
 
-    // Visual feedback for hit
-    (zombie.material as THREE.MeshStandardMaterial).color.set(0xff0000); // Flash red
+    (zombie.material as THREE.MeshStandardMaterial).color.set(0xff0000);
     setTimeout(() => {
-      if(zombie.material) { // Check if zombie still exists
+      if(zombie.material) {
          (zombie.material as THREE.MeshStandardMaterial).color.set(zombie.originalColor);
       }
     }, 150);
@@ -170,7 +174,7 @@ export default function Game({
   const handleShoot = useCallback(() => {
     const { current: data } = gameData;
     const time = performance.now();
-    if (time - data.lastShotTime < 200) return; // Fire rate limit
+    if (time - data.lastShotTime < 200) return;
     data.lastShotTime = time;
 
     const raycaster = new THREE.Raycaster();
@@ -180,7 +184,7 @@ export default function Game({
 
     if (intersects.length > 0) {
       const zombie = intersects[0].object as Zombie;
-      applyDamage(zombie, 20); // 20 damage per shot
+      applyDamage(zombie, 20);
     }
   }, [applyDamage]);
 
@@ -237,21 +241,24 @@ export default function Game({
     wall4.position.x = halfArena; wall4.position.y = wallY; wall4.receiveShadow = true;
     data.scene.add(wall4);
 
-    const obstacleColors = [0x556B2F, 0x8B4513, 0x6B8E23]; // Olive, SaddleBrown, OliveDrab
+    const obstacleColors = [0x556B2F, 0x8B4513, 0x6B8E23];
     
     for (let i = 0; i < 15; i++) {
-        const size = Math.random() * 2 + 1;
-        const geometry = new THREE.BoxGeometry(size, size, size);
+        const sizeX = Math.random() * 4 + 2;
+        const sizeY = Math.random() * 2 + 0.5;
+        const sizeZ = Math.random() * 4 + 2;
+        const geometry = new THREE.BoxGeometry(sizeX, sizeY, sizeZ);
         const material = new THREE.MeshStandardMaterial({ color: obstacleColors[Math.floor(Math.random() * obstacleColors.length)] });
         const obstacle = new THREE.Mesh(geometry, material);
         obstacle.position.set(
             (Math.random() - 0.5) * (ARENA_SIZE - 10),
-            size / 2,
+            sizeY / 2,
             (Math.random() - 0.5) * (ARENA_SIZE - 10)
         );
         obstacle.castShadow = true;
         obstacle.receiveShadow = true;
         data.scene.add(obstacle);
+        data.obstacles.push(obstacle);
     }
 
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -260,6 +267,7 @@ export default function Game({
         case 'KeyS': data.input.backward = true; break;
         case 'KeyA': data.input.left = true; break;
         case 'KeyD': data.input.right = true; break;
+        case 'Space': data.input.jump = true; break;
         case 'ArrowUp': data.input.arrowUp = true; break;
         case 'ArrowDown': data.input.arrowDown = true; break;
         case 'ArrowLeft': data.input.arrowLeft = true; break;
@@ -272,6 +280,7 @@ export default function Game({
         case 'KeyS': data.input.backward = false; break;
         case 'KeyA': data.input.left = false; break;
         case 'KeyD': data.input.right = false; break;
+        case 'Space': data.input.jump = false; break;
         case 'ArrowUp': data.input.arrowUp = false; break;
         case 'ArrowDown': data.input.arrowDown = false; break;
         case 'ArrowLeft': data.input.arrowLeft = false; break;
@@ -279,13 +288,13 @@ export default function Game({
       }
     };
     const handleMouseDown = (e: MouseEvent) => {
-        if (e.button === 2) { // Right mouse button
+        if (e.button === 2) {
             data.input.shoot = true;
         }
     };
 
     const handleMouseUp = (e: MouseEvent) => {
-        if (e.button === 2) { // Right mouse button
+        if (e.button === 2) {
             data.input.shoot = false;
         }
     };
@@ -326,13 +335,19 @@ export default function Game({
       if (data.input.left) moveDirection.x -= 1;
       if (data.input.right) moveDirection.x += 1;
       
+      const playerSpeed = data.onGround ? speed : speed * 0.3; // Slower movement in air
       if (moveDirection.lengthSq() > 0) {
         moveDirection.normalize().applyQuaternion(data.player.quaternion);
-        data.playerVelocity.add(moveDirection.multiplyScalar(speed * delta));
+        data.playerVelocity.x += moveDirection.x * playerSpeed * delta;
+        data.playerVelocity.z += moveDirection.z * playerSpeed * delta;
       }
 
       if (data.input.shoot) {
         handleShoot();
+      }
+      if (data.input.jump && data.onGround) {
+        data.playerVelocity.y = 7.0; // Jump force
+        data.onGround = false;
       }
       
       const rotationSpeed = 1.5 * delta;
@@ -347,10 +362,67 @@ export default function Game({
         data.camera.rotation.x = THREE.MathUtils.clamp(newPitch, -Math.PI / 2, Math.PI / 2);
       }
 
-      data.player.position.add(data.playerVelocity);
-      data.playerVelocity.multiplyScalar(1 - 10 * delta); 
+      // Gravity
+      data.playerVelocity.y -= 20.0 * delta; 
+      
+      data.player.position.x += data.playerVelocity.x * delta;
+      data.player.position.y += data.playerVelocity.y * delta;
+      data.player.position.z += data.playerVelocity.z * delta;
 
-      const halfSize = ARENA_SIZE / 2 - 1;
+      // Friction
+      data.playerVelocity.x *= (1 - 10 * delta); 
+      data.playerVelocity.z *= (1 - 10 * delta);
+      
+      data.onGround = false;
+      const playerHeight = 1.6;
+
+      // Ground collision
+      if (data.player.position.y < playerHeight / 2) {
+          data.player.position.y = playerHeight / 2;
+          data.playerVelocity.y = 0;
+          data.onGround = true;
+      }
+
+      const playerCollider = new THREE.Box3().setFromObject(data.player);
+      const playerRadius = 0.5;
+      
+      // Obstacle collision
+      data.obstacles.forEach(obstacle => {
+        const obstacleCollider = new THREE.Box3().setFromObject(obstacle);
+        const intersects = playerCollider.intersectsBox(obstacleCollider);
+        
+        if (intersects) {
+          const penetration = new THREE.Vector3();
+          playerCollider.getCenter(penetration).sub(obstacleCollider.getCenter(new THREE.Vector3()));
+
+          const playerSize = playerCollider.getSize(new THREE.Vector3());
+          const obstacleSize = obstacleCollider.getSize(new THREE.Vector3());
+
+          const overlapX = (playerSize.x + obstacleSize.x) / 2 - Math.abs(penetration.x);
+          const overlapY = (playerSize.y + obstacleSize.y) / 2 - Math.abs(penetration.y);
+          const overlapZ = (playerSize.z + obstacleSize.z) / 2 - Math.abs(penetration.z);
+
+          if (overlapY > 0 && data.playerVelocity.y < 0 && data.player.position.y > obstacle.position.y) {
+              // Check if player is on top
+              if (Math.abs(penetration.y) > overlapY - 0.1) {
+                  data.player.position.y = obstacle.position.y + obstacleSize.y / 2 + playerSize.y / 2 - 0.1;
+                  data.playerVelocity.y = 0;
+                  data.onGround = true;
+                  return; // Skip other collision checks if on top
+              }
+          }
+
+          if (overlapX < overlapZ) {
+              data.player.position.x += penetration.x > 0 ? overlapX : -overlapX;
+              data.playerVelocity.x = 0;
+          } else {
+              data.player.position.z += penetration.z > 0 ? overlapZ : -overlapZ;
+              data.playerVelocity.z = 0;
+          }
+        }
+      });
+
+      const halfSize = ARENA_SIZE / 2 - playerRadius;
       data.player.position.x = THREE.MathUtils.clamp(data.player.position.x, -halfSize, halfSize);
       data.player.position.z = THREE.MathUtils.clamp(data.player.position.z, -halfSize, halfSize);
 
@@ -358,7 +430,7 @@ export default function Game({
         zombie.lookAt(data.player.position);
         const distance = zombie.position.distanceTo(data.player.position);
         if (distance > 1.5) {
-            zombie.translateZ(zombie.speed);
+            zombie.translateZ(zombie.speed * delta * 20); // Scale speed by delta and a multiplier
         } else {
             const time = performance.now();
             if (time - data.lastDamageTime > 1000) { 
@@ -394,6 +466,7 @@ export default function Game({
 
       data.zombies.forEach(z => data.scene.remove(z));
       data.zombies = [];
+      data.obstacles = [];
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

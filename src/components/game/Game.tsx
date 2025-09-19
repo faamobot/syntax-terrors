@@ -102,8 +102,8 @@ export default function Game({
   onTakeDamage,
   setWaveMessage,
   wave,
-  health,
   score,
+  health,
   zombiesRemaining,
   toast,
   containerRef,
@@ -230,17 +230,33 @@ export default function Game({
         data.scene.remove(zombie);
       });
       data.zombies = [];
+      
+      const isPositionValid = (position: THREE.Vector3) => {
+        const tempZombieBox = new THREE.Box3(
+            new THREE.Vector3(position.x - 1, position.y, position.z - 1),
+            new THREE.Vector3(position.x + 1, position.y + 2, position.z + 1)
+        );
+
+        for (const obstacle of data.obstacles) {
+            const obstacleBox = new THREE.Box3().setFromObject(obstacle);
+            if (tempZombieBox.intersectsBox(obstacleBox)) {
+                return false;
+            }
+        }
+        return true;
+      };
 
       waveData.zombies.forEach((zombieData: ZombieData) => {
         const zombie = createHumanoidZombie(zombieData.type) as Zombie;
         
-        const positionX = (Math.random() - 0.5) * (ARENA_SIZE - 4);
-        const positionZ = (Math.random() - 0.5) * (ARENA_SIZE - 4);
-        zombie.position.set(
-          positionX,
-          1.2, // Approx height of legs
-          positionZ
-        );
+        let position: THREE.Vector3;
+        do {
+            const x = (Math.random() - 0.5) * (ARENA_SIZE - 4);
+            const z = (Math.random() - 0.5) * (ARENA_SIZE - 4);
+            position = new THREE.Vector3(x, 1.2, z);
+        } while (!isPositionValid(position));
+        
+        zombie.position.copy(position);
         
         zombie.castShadow = true;
         (zombie as any).health = zombieData.health;

@@ -30,6 +30,7 @@ type GameProps = {
 type Zombie = THREE.Mesh & {
   speed: number;
   health: number;
+  type: 'walker' | 'runner' | 'brute';
 };
 
 const ARENA_SIZE = 100;
@@ -98,37 +99,41 @@ export default function Game({
     try {
       const waveData = await generateZombieWave({
         waveNumber: currentWave,
-        playerScore: score,
-        timeSurvived: 0, 
-        playerHealth: health,
+        difficulty: 'normal',
       });
       
       if(waveData.messageToPlayer) {
         setWaveMessage(waveData.messageToPlayer);
         setTimeout(() => setWaveMessage(''), 4000);
       }
-
-      for (let i = 0; i < waveData.zombieCount; i++) {
-          const zombieMaterial = new THREE.MeshStandardMaterial({ color: 0xff0000 });
-          const zombie = new THREE.Mesh(new THREE.BoxGeometry(1, 2, 1), zombieMaterial) as Zombie;
-          zombie.position.set(
-              (Math.random() - 0.5) * (ARENA_SIZE - 2),
-              1,
-              (Math.random() - 0.5) * (ARENA_SIZE - 2)
-          );
-          zombie.health = 100 * waveData.zombieHealthMultiplier;
-          zombie.speed = 0.03 * waveData.zombieSpeedMultiplier;
-          gameData.current.scene.add(zombie);
-          gameData.current.zombies.push(zombie);
-      }
       
-      if (waveData.zombieCount === 0 && currentWave > 0) {
-        gameData.current.waveInProgress = false;
-        // If the API for some reason returns 0 zombies for a later wave, immediately try to start the next one.
-        // This prevents the game from getting stuck.
-        startNewWave();
-      } else {
-        gameData.current.waveInProgress = false;
+      const zombieTypes = {
+        walker: { color: 0x0d5223, geometry: new THREE.BoxGeometry(1, 2, 1) },
+        runner: { color: 0x1a8c3e, geometry: new THREE.BoxGeometry(0.8, 1.8, 0.8) },
+        brute: { color: 0x073b17, geometry: new THREE.BoxGeometry(1.5, 2.5, 1.5) },
+      };
+
+      waveData.zombies.forEach(zombieData => {
+        const typeInfo = zombieTypes[zombieData.type];
+        const zombieMaterial = new THREE.MeshStandardMaterial({ color: typeInfo.color });
+        const zombie = new THREE.Mesh(typeInfo.geometry, zombieMaterial) as Zombie;
+        
+        zombie.position.set(
+            (Math.random() - 0.5) * (ARENA_SIZE - 2),
+            typeInfo.geometry.parameters.height / 2,
+            (Math.random() - 0.5) * (ARENA_SIZE - 2)
+        );
+        
+        zombie.health = zombieData.health;
+        zombie.speed = zombieData.speed;
+        zombie.type = zombieData.type;
+        
+        gameData.current.scene.add(zombie);
+        gameData.current.zombies.push(zombie);
+      });
+      
+      if (waveData.zombies.length === 0 && currentWave > 0) {
+         startNewWave();
       }
       
     } catch (e) {
@@ -138,10 +143,11 @@ export default function Game({
         description: "Could not generate next zombie wave. Please try again.",
         variant: "destructive",
       });
-      gameData.current.waveInProgress = false;
+    } finally {
+        gameData.current.waveInProgress = false;
     }
 
-  }, [wave, score, health, setWave, setWaveMessage, toast]);
+  }, [wave, setWave, setWaveMessage, toast]);
 
   useEffect(() => {
     if (!mountRef.current) return;
@@ -204,7 +210,7 @@ export default function Game({
     
     for (let i = 0; i < 15; i++) {
         const geometry = obstacleGeometries[Math.floor(Math.random() * obstacleGeometries.length)];
-        const material = new THREE.MeshStandardMaterial({ color: Math.random() * 0xffffff });
+        const material = new THREE.MeshStandardMaterial({ color: 0xADD8E6 });
         const obstacle = new THREE.Mesh(geometry, material);
         obstacle.position.set(
             (Math.random() - 0.5) * (ARENA_SIZE - 10),

@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import Game from '@/components/game/Game';
 import { StartMenu } from '@/components/game/StartMenu';
 import { GameOverMenu } from '@/components/game/GameOverMenu';
@@ -7,6 +7,7 @@ import { PauseMenu } from '@/components/game/PauseMenu';
 import { HUD } from '@/components/game/HUD';
 import { Crosshair } from '@/components/game/Crosshair';
 import { DamageOverlay } from '@/components/game/DamageOverlay';
+import { useToast } from '@/hooks/use-toast';
 
 export type GameState = 'start' | 'playing' | 'paused' | 'gameover';
 
@@ -21,6 +22,8 @@ export default function Home() {
   const [highScore, setHighScore] = useState(0);
   const [wasDamaged, setWasDamaged] = useState(false);
   const [waveMessage, setWaveMessage] = useState('');
+  const mainRef = useRef<HTMLDivElement>(null);
+  const { toast } = useToast();
 
   useEffect(() => {
     const storedHighScore = localStorage.getItem('zombie-rampage-highscore');
@@ -28,14 +31,23 @@ export default function Home() {
       setHighScore(parseInt(storedHighScore, 10));
     }
     
-    // Prevent context menu on right-click
     const preventContextMenu = (e: MouseEvent) => e.preventDefault();
     document.addEventListener('contextmenu', preventContextMenu);
 
+    const handlePointerLockError = () => {
+      toast({
+        title: 'Pointer Lock Failed',
+        description: 'Could not lock the mouse. Please click the screen to enable.',
+        variant: 'destructive',
+      });
+    };
+    document.addEventListener('pointerlockerror', handlePointerLockError);
+
     return () => {
       document.removeEventListener('contextmenu', preventContextMenu);
+      document.removeEventListener('pointerlockerror', handlePointerLockError);
     };
-  }, []);
+  }, [toast]);
 
   const handleTakeDamage = useCallback(() => {
     setWasDamaged(true);
@@ -51,7 +63,6 @@ export default function Home() {
     setIsReloading(false);
     setGameState('playing');
     setWaveMessage('');
-    document.body.requestPointerLock();
   };
 
   const pauseGame = useCallback(() => {
@@ -62,8 +73,6 @@ export default function Home() {
 
   const resumeGame = () => {
     setGameState('playing');
-    // Re-request pointer lock
-    document.body.requestPointerLock();
   };
   
   const gameOver = useCallback(() => {
@@ -75,7 +84,15 @@ export default function Home() {
   }, [score, highScore]);
 
   return (
-    <main className="relative w-screen h-screen bg-background text-foreground font-headline overflow-hidden cursor-crosshair">
+    <main 
+      ref={mainRef}
+      className="relative w-screen h-screen bg-background text-foreground font-headline overflow-hidden"
+      onClick={() => {
+        if (gameState === 'playing' && document.pointerLockElement !== mainRef.current) {
+          mainRef.current?.requestPointerLock();
+        }
+      }}
+    >
       {(gameState === 'playing' || gameState === 'paused') && (
         <HUD 
           score={score} 

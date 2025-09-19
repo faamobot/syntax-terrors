@@ -118,9 +118,7 @@ export default function Game({
 
 
   const onPointerLockChange = useCallback(() => {
-    if (document.pointerLockElement === document.body) {
-      // Pointer locked
-    } else {
+    if (document.pointerLockElement !== mountRef.current?.parentElement) {
       if(gameState === 'playing') onPause();
     }
   }, [gameState, onPause]);
@@ -130,6 +128,7 @@ export default function Game({
 
     const { current: data } = gameData;
     const mount = mountRef.current;
+    const parentElement = mount.parentElement;
     
     data.renderer = new THREE.WebGLRenderer({ antialias: true });
     data.renderer.setSize(window.innerWidth, window.innerHeight);
@@ -207,14 +206,14 @@ export default function Game({
       }
     };
     const handleMouseMove = (e: MouseEvent) => {
-      if (document.pointerLockElement !== document.body) return;
+      if (gameState !== 'playing' || document.pointerLockElement !== parentElement) return;
       data.player.rotation.y -= e.movementX * 0.002;
       const newPitch = data.camera.rotation.x - e.movementY * 0.002;
       data.camera.rotation.x = THREE.MathUtils.clamp(newPitch, -Math.PI / 2, Math.PI / 2);
     };
 
     const handleMouseDown = (e: MouseEvent) => {
-      if (document.pointerLockElement !== document.body || data.input.reloading || ammo <= 0) return;
+      if (gameState !== 'playing' || data.input.reloading || ammo <= 0 || document.pointerLockElement !== parentElement) return;
       
       const time = performance.now();
       if (time - data.lastShotTime < 200) return; // Fire rate
@@ -243,7 +242,7 @@ export default function Game({
         data.renderer?.setSize(window.innerWidth, window.innerHeight);
     }
     
-    document.addEventListener('pointerlockchange', onPointerLockChange);
+    document.addEventListener('pointerlockchange', onPointerLockChange, false);
     document.addEventListener('keydown', handleKeyDown);
     document.addEventListener('keyup', handleKeyUp);
     document.addEventListener('mousemove', handleMouseMove);
@@ -270,7 +269,7 @@ export default function Game({
     const clock = new THREE.Clock();
     const animate = () => {
       gameLoopRef.current = requestAnimationFrame(animate);
-      if (gameState === 'paused' || !data.renderer) return;
+      if (gameState !== 'playing' || !data.renderer) return;
 
       const delta = clock.getDelta();
       
@@ -338,7 +337,7 @@ export default function Game({
       }
       data.renderer!.dispose();
 
-      document.removeEventListener('pointerlockchange', onPointerLockChange);
+      document.removeEventListener('pointerlockchange', onPointerLockChange, false);
       document.removeEventListener('keydown', handleKeyDown);
       document.removeEventListener('keyup', handleKeyUp);
       document.removeEventListener('mousemove', handleMouseMove);
@@ -348,12 +347,14 @@ export default function Game({
       data.zombies.forEach(z => data.scene.remove(z));
       data.zombies = [];
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
-    if (gameState === 'playing' && document.pointerLockElement !== document.body) {
-      document.body.requestPointerLock();
-    } else if (gameState !== 'playing' && document.pointerLockElement === document.body) {
+    const parentElement = mountRef.current?.parentElement;
+    if (gameState === 'playing' && document.pointerLockElement !== parentElement) {
+      parentElement?.requestPointerLock();
+    } else if (gameState !== 'playing' && document.pointerLockElement === parentElement) {
       document.exitPointerLock();
     }
   }, [gameState]);

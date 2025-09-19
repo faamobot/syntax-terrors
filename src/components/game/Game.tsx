@@ -100,9 +100,9 @@ export default function Game({
       }
       
       const zombieTypes = {
-        walker: { color: new THREE.Color(0x556B2F), geometry: new THREE.BoxGeometry(1, 2, 1) },
-        runner: { color: new THREE.Color(0x8B4513), geometry: new THREE.BoxGeometry(0.8, 1.8, 0.8) },
-        brute: { color: new THREE.Color(0x6B8E23), geometry: new THREE.BoxGeometry(1.5, 2.5, 1.5) },
+        walker: { color: new THREE.Color(0x0d5223), geometry: new THREE.BoxGeometry(1, 2, 1) },
+        runner: { color: new THREE.Color(0x0d5223), geometry: new THREE.BoxGeometry(0.8, 1.8, 0.8) },
+        brute: { color: new THREE.Color(0x0d5223), geometry: new THREE.BoxGeometry(1.5, 2.5, 1.5) },
       };
 
       waveData.zombies.forEach((zombieData: ZombieData) => {
@@ -343,15 +343,15 @@ export default function Game({
         data.playerVelocity.x = moveDirection.x * playerSpeed;
         data.playerVelocity.z = moveDirection.z * playerSpeed;
       } else {
-        data.playerVelocity.x = 0;
-        data.playerVelocity.z = 0;
+        data.playerVelocity.x *= 0.9; // friction
+        data.playerVelocity.z *= 0.9; // friction
       }
 
       if (data.input.shoot) {
         handleShoot();
       }
       if (data.input.jump && data.onGround) {
-        data.playerVelocity.y = 7.0; // Jump force
+        data.playerVelocity.y = 8.0; // Jump force
         data.onGround = false;
       }
       
@@ -389,37 +389,38 @@ export default function Game({
 
       const playerCollider = new THREE.Box3().setFromObject(data.player);
       
-      // Obstacle collision
+      // Obstacle collision - Player
       data.obstacles.forEach(obstacle => {
         const obstacleCollider = new THREE.Box3().setFromObject(obstacle);
         const intersects = playerCollider.intersectsBox(obstacleCollider);
         
         if (intersects) {
           const penetration = new THREE.Vector3();
-          const playerCenter = playerCollider.getCenter(new THREE.Vector3());
-          const obstacleCenter = obstacleCollider.getCenter(new THREE.Vector3());
-          penetration.subVectors(playerCenter, obstacleCenter);
-
+          playerCollider.getCenter(penetration).sub(obstacleCollider.getCenter(new THREE.Vector3()));
+      
           const playerSize = playerCollider.getSize(new THREE.Vector3());
           const obstacleSize = obstacleCollider.getSize(new THREE.Vector3());
-
+      
           const overlapX = (playerSize.x + obstacleSize.x) / 2 - Math.abs(penetration.x);
           const overlapZ = (playerSize.z + obstacleSize.z) / 2 - Math.abs(penetration.z);
           const overlapY = (playerSize.y + obstacleSize.y) / 2 - Math.abs(penetration.y);
 
-          if (overlapY > 0 && prevPosition.y >= obstacle.position.y + obstacleSize.y / 2) {
+          // Check if player is on top of the obstacle
+          if (overlapY > 0 && prevPosition.y >= obstacle.position.y + obstacleSize.y / 2 - 0.1) {
              if (data.playerVelocity.y <= 0) {
                  data.player.position.y = obstacle.position.y + obstacleSize.y / 2 + playerHeight / 2;
                  data.playerVelocity.y = 0;
                  data.onGround = true;
-                 return;
+                 return; // Exit early since we're on top
              }
           }
           
           if (overlapX < overlapZ) {
               data.player.position.x += penetration.x > 0 ? overlapX : -overlapX;
+              data.playerVelocity.x = 0;
           } else {
               data.player.position.z += penetration.z > 0 ? overlapZ : -overlapZ;
+              data.playerVelocity.z = 0;
           }
         }
       });
@@ -432,9 +433,33 @@ export default function Game({
       data.zombies.forEach(zombie => {
         zombie.lookAt(data.player.position);
         const distance = zombie.position.distanceTo(data.player.position);
-        if (distance > 1.5) {
+        
+        const zombieCollider = new THREE.Box3().setFromObject(zombie);
+        let collided = false;
+        data.obstacles.forEach(obstacle => {
+            const obstacleCollider = new THREE.Box3().setFromObject(obstacle);
+            if (zombieCollider.intersectsBox(obstacleCollider)) {
+                collided = true;
+                const penetration = new THREE.Vector3();
+                zombieCollider.getCenter(penetration).sub(obstacleCollider.getCenter(new THREE.Vector3()));
+
+                const zombieSize = zombieCollider.getSize(new THREE.Vector3());
+                const obstacleSize = obstacleCollider.getSize(new THREE.Vector3());
+
+                const overlapX = (zombieSize.x + obstacleSize.x) / 2 - Math.abs(penetration.x);
+                const overlapZ = (zombieSize.z + obstacleSize.z) / 2 - Math.abs(penetration.z);
+
+                if (overlapX < overlapZ) {
+                    zombie.position.x += (penetration.x > 0 ? 1 : -1) * zombie.speed;
+                } else {
+                    zombie.position.z += (penetration.z > 0 ? 1 : -1) * zombie.speed;
+                }
+            }
+        });
+
+        if (distance > 1.5 && !collided) {
             zombie.translateZ(zombie.speed);
-        } else {
+        } else if (distance <= 1.5) {
             const time = performance.now();
             if (time - data.lastDamageTime > 1000) { 
                 data.lastDamageTime = time;

@@ -66,6 +66,7 @@ export default function Game({
       right: false,
       shoot: false,
       jump: false,
+      sprint: false,
       arrowUp: false,
       arrowDown: false,
       arrowLeft: false,
@@ -99,15 +100,16 @@ export default function Game({
         setTimeout(() => setWaveMessage(''), 4000);
       }
       
+      const zombieColor = new THREE.Color(0x0d5223);
       const zombieTypes = {
-        walker: { color: new THREE.Color(0x0d5223), geometry: new THREE.BoxGeometry(1, 2, 1) },
-        runner: { color: new THREE.Color(0x0d5223), geometry: new THREE.BoxGeometry(0.8, 1.8, 0.8) },
-        brute: { color: new THREE.Color(0x0d5223), geometry: new THREE.BoxGeometry(1.5, 2.5, 1.5) },
+        walker: { geometry: new THREE.BoxGeometry(1, 2, 1) },
+        runner: { geometry: new THREE.BoxGeometry(0.8, 1.8, 0.8) },
+        brute: { geometry: new THREE.BoxGeometry(1.5, 2.5, 1.5) },
       };
 
       waveData.zombies.forEach((zombieData: ZombieData) => {
         const typeInfo = zombieTypes[zombieData.type];
-        const zombieMaterial = new THREE.MeshStandardMaterial({ color: typeInfo.color });
+        const zombieMaterial = new THREE.MeshStandardMaterial({ color: zombieColor });
         const zombie = new THREE.Mesh(typeInfo.geometry, zombieMaterial) as Zombie;
         
         zombie.position.set(
@@ -120,7 +122,7 @@ export default function Game({
         zombie.health = zombieData.health;
         zombie.speed = zombieData.speed;
         zombie.type = zombieData.type;
-        zombie.originalColor = typeInfo.color.clone();
+        zombie.originalColor = zombieColor.clone();
         
         data.scene.add(zombie);
         data.zombies.push(zombie);
@@ -270,6 +272,7 @@ export default function Game({
         case 'KeyA': data.input.left = true; break;
         case 'KeyD': data.input.right = true; break;
         case 'Space': data.input.jump = true; break;
+        case 'ShiftLeft': data.input.sprint = true; break;
         case 'ArrowUp': data.input.arrowUp = true; break;
         case 'ArrowDown': data.input.arrowDown = true; break;
         case 'ArrowLeft': data.input.arrowLeft = true; break;
@@ -283,6 +286,7 @@ export default function Game({
         case 'KeyA': data.input.left = false; break;
         case 'KeyD': data.input.right = false; break;
         case 'Space': data.input.jump = false; break;
+        case 'ShiftLeft': data.input.sprint = false; break;
         case 'ArrowUp': data.input.arrowUp = false; break;
         case 'ArrowDown': data.input.arrowDown = false; break;
         case 'ArrowLeft': data.input.arrowLeft = false; break;
@@ -330,14 +334,17 @@ export default function Game({
 
       const delta = clock.getDelta();
       
-      const speed = 7.0;
+      const baseSpeed = 5.0;
+      const sprintSpeed = 10.0;
+      const currentSpeed = data.input.sprint ? sprintSpeed : baseSpeed;
+
       const moveDirection = new THREE.Vector3();
       if (data.input.forward) moveDirection.z -= 1;
       if (data.input.backward) moveDirection.z += 1;
       if (data.input.left) moveDirection.x -= 1;
       if (data.input.right) moveDirection.x += 1;
       
-      const playerSpeed = data.onGround ? speed : speed * 0.3;
+      const playerSpeed = data.onGround ? currentSpeed : currentSpeed * 0.3;
       if (moveDirection.lengthSq() > 0) {
         moveDirection.normalize().applyQuaternion(data.player.quaternion);
         data.playerVelocity.x = moveDirection.x * playerSpeed;
@@ -450,9 +457,9 @@ export default function Game({
                 const overlapZ = (zombieSize.z + obstacleSize.z) / 2 - Math.abs(penetration.z);
 
                 if (overlapX < overlapZ) {
-                    zombie.position.x += (penetration.x > 0 ? 1 : -1) * zombie.speed;
+                    zombie.position.x += (penetration.x > 0 ? 1 : -1) * zombie.speed * delta * 50;
                 } else {
-                    zombie.position.z += (penetration.z > 0 ? 1 : -1) * zombie.speed;
+                    zombie.position.z += (penetration.z > 0 ? 1 : -1) * zombie.speed * delta * 50;
                 }
             }
         });

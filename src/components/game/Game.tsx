@@ -169,7 +169,6 @@ export default function Game({
     onGround: true,
     
     lastShotTime: 0,
-    lastDamageTime: 0,
     baseBulletDamage: 20,
   });
 
@@ -400,12 +399,13 @@ export default function Game({
     const isClicker = zombie.type === 'clicker';
     const bonus = isClicker || Math.random() < 0.1 ? 500 : 0; 
     
-    if (bonus > 0) {
+    if (bonus > 0 && !isClicker) { // Clickers have their own message
       playSound('powerup');
       setPlayerMessage('+500 BONUS!');
       setTimeout(() => setPlayerMessage(''), 1500);
     }
     if (isClicker) {
+        playSound('powerup');
         setSpecialAmmo(sa => sa + 10);
         setPlayerMessage("CLICKER KILLED! +10 SPECIAL AMMO");
         setTimeout(() => setPlayerMessage(''), 2000);
@@ -446,7 +446,6 @@ export default function Game({
     const { current: data } = gameData;
     const time = performance.now();
     
-    // Determine firing rate based on weapon
     const fireRate = currentWeapon === 'special' ? 400 : 200;
     if (time - data.lastShotTime < fireRate) return;
     
@@ -475,20 +474,19 @@ export default function Game({
     const bulletGeometry = new THREE.SphereGeometry(0.1, 8, 8);
     const bullet = new THREE.Mesh(bulletGeometry, bulletMaterial) as Bullet;
     
-    // Use a fresh direction vector for the bullet's velocity
     const bulletVelocityVector = new THREE.Vector3();
     data.camera.getWorldDirection(bulletVelocityVector);
 
     bullet.position.copy(data.player.position).add(bulletVelocityVector.clone().multiplyScalar(0.8));
     bullet.position.y += 1.5;
 
-    bullet.velocity = bulletVelocityVector.multiplyScalar(150);
+    bullet.velocity = bulletVelocityVector.clone().multiplyScalar(150);
     bullet.spawnTime = time;
 
     data.scene.add(bullet);
     data.bullets.push(bullet);
 
-    // Use another fresh direction vector for the raycaster
+    // Use a fresh direction vector for the raycaster
     const raycastDirection = new THREE.Vector3();
     data.camera.getWorldDirection(raycastDirection);
     
@@ -864,34 +862,38 @@ export default function Game({
 
       // Vertical movement and collision
       const verticalDelta = data.playerVelocity.y * delta;
+      const prevPlayerY = data.player.position.y;
       data.player.position.y += verticalDelta;
       data.onGround = false;
       
       let correctedY = false;
 
-      data.obstacles.forEach(obstacle => {
-          if (correctedY) return;
+      for (const obstacle of data.obstacles) {
           const obstacleCollider = new THREE.Box3().setFromObject(obstacle);
           const currentCollider = new THREE.Box3().setFromObject(data.player);
 
           if (currentCollider.intersectsBox(obstacleCollider)) {
             // Player is moving downwards
             if (data.playerVelocity.y <= 0) {
-              // Check if the player was sufficiently above the obstacle in the previous frame
-              const prevPlayerBottom = data.player.position.y - verticalDelta + playerHeight / 2 - 1; // player's feet
-              if (prevPlayerBottom >= obstacleCollider.max.y) {
-                 data.player.position.y = obstacleCollider.max.y + playerHeight / 2 - 1;
+              const prevPlayerBottom = prevPlayerY - playerHeight / 2;
+              if (prevPlayerBottom >= obstacleCollider.max.y - 0.1) { // -0.1 tolerance
+                 data.player.position.y = obstacleCollider.max.y + playerHeight / 2;
                  data.playerVelocity.y = 0;
                  data.onGround = true;
                  correctedY = true;
+                 break;
               }
             } else { // Player is moving upwards
-                data.player.position.y -= verticalDelta; // Revert
-                data.playerVelocity.y = 0; // Hit ceiling
-                correctedY = true;
+                const prevPlayerTop = prevPlayerY + playerHeight / 2;
+                if(prevPlayerTop <= obstacleCollider.min.y + 0.1) {
+                    data.player.position.y = obstacleCollider.min.y - playerHeight / 2;
+                    data.playerVelocity.y = 0; // Hit ceiling
+                    correctedY = true;
+                    break;
+                }
             }
           }
-      });
+      };
       
       if (data.player.position.y < playerHeight / 2) {
           data.player.position.y = playerHeight / 2;
@@ -904,24 +906,26 @@ export default function Game({
       const horizontalDeltaZ = data.playerVelocity.z * delta;
       
       data.player.position.x += horizontalDeltaX;
-      data.obstacles.forEach(obstacle => {
+      for (const obstacle of data.obstacles) {
         const obstacleCollider = new THREE.Box3().setFromObject(obstacle);
         const currentCollider = new THREE.Box3().setFromObject(data.player);
         if (currentCollider.intersectsBox(obstacleCollider)) {
           data.player.position.x -= horizontalDeltaX; // Revert X
           data.playerVelocity.x = 0;
+          break;
         }
-      });
+      };
 
       data.player.position.z += horizontalDeltaZ;
-      data.obstacles.forEach(obstacle => {
+      for (const obstacle of data.obstacles) {
         const obstacleCollider = new THREE.Box3().setFromObject(obstacle);
         const currentCollider = new THREE.Box3().setFromObject(data.player);
         if (currentCollider.intersectsBox(obstacleCollider)) {
           data.player.position.z -= horizontalDeltaZ; // Revert Z
           data.playerVelocity.z = 0;
+          break;
         }
-      });
+      };
       
 
       const playerRadius = 0.5;

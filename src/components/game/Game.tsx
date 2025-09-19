@@ -465,7 +465,7 @@ export default function Game({
         return; // Don't shoot
       }
       bulletDamage = 25;
-      bulletColor = 0xffa500; // Orange for special
+      bulletColor = 0x00ff00; // Green for special
       setSpecialAmmo(sa => sa - 1);
     } else {
       bulletDamage = data.baseBulletDamage;
@@ -492,8 +492,8 @@ export default function Game({
     data.bullets.push(bullet);
 
     const raycaster = new THREE.Raycaster(
-        bullet.position.clone(),
-        vector.normalize()
+        data.camera.position, // Ray starts from camera
+        vector // Direction camera is facing
     );
     
     const intersects = raycaster.intersectObjects(data.zombies, true);
@@ -502,6 +502,7 @@ export default function Game({
       let hitObject = intersects[0].object;
       let targetZombie: Zombie | null = null;
       
+      // Traverse up the hierarchy to find the main zombie group
       let current: THREE.Object3D | null = hitObject;
       while (current) {
         if ((current as any).isZombie) {
@@ -511,11 +512,11 @@ export default function Game({
         current = current.parent;
       }
 
-      if (targetZombie && intersects[0].distance < 100) { 
+      if (targetZombie) { 
           applyDamage(targetZombie, bulletDamage);
       }
     }
-  }, [applyDamage, playSound, currentWeapon, specialAmmo, setSpecialAmmo, setCurrentWeapon]);
+  }, [applyDamage, playSound, currentWeapon, specialAmmo, setSpecialAmmo, setCurrentWeapon, data.baseBulletDamage]);
 
   useEffect(() => {
     if (gameState === 'playing' && !audioContextRef.current) {

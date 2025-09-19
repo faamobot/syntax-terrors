@@ -109,7 +109,7 @@ export default function Game({
       }
 
       for (let i = 0; i < waveData.zombieCount; i++) {
-          const zombieMaterial = new THREE.MeshStandardMaterial({ color: 0x803333 });
+          const zombieMaterial = new THREE.MeshStandardMaterial({ color: 0x0d5223 });
           const zombie = new THREE.Mesh(new THREE.BoxGeometry(1, 2, 1), zombieMaterial) as Zombie;
           zombie.position.set(
               (Math.random() - 0.5) * (ARENA_SIZE - 2),
@@ -197,11 +197,10 @@ export default function Game({
       new THREE.CylinderGeometry(1.5, 1.5, 3, 16),
       new THREE.BoxGeometry(3, 3, 3),
     ];
-    const obstacleColors = [0xff6347, 0x4682b4, 0x32cd32, 0xffd700, 0x6a5acd];
     
-    for (let i = 0; i < 15; i++) {
+    for (let i = 0; i < 8; i++) {
         const geometry = obstacleGeometries[Math.floor(Math.random() * obstacleGeometries.length)];
-        const material = new THREE.MeshStandardMaterial({ color: obstacleColors[Math.floor(Math.random() * obstacleColors.length)] });
+        const material = new THREE.MeshStandardMaterial({ color: 0xADD8E6 });
         const obstacle = new THREE.Mesh(geometry, material);
         obstacle.position.set(
             (Math.random() - 0.5) * (ARENA_SIZE - 10),

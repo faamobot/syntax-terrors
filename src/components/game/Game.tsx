@@ -245,13 +245,13 @@ export default function Game({
     const handleKeyUp = (e: KeyboardEvent) => {
        switch (e.code) {
         case 'KeyW': data.input.forward = false; break;
-        case 'KeyS': data.input.backward = false; break;
-        case 'KeyA': data.input.left = false; break;
-        case 'KeyD': data.input.right = false; break;
-        case 'ArrowUp': data.input.arrowUp = false; break;
-        case 'ArrowDown': data.input.arrowDown = false; break;
-        case 'ArrowLeft': data.input.arrowLeft = false; break;
-        case 'ArrowRight': data.input.arrowRight = false; break;
+        case 'KeyS': data.input.backward = true; break;
+        case 'KeyA': data.input.left = true; break;
+        case 'KeyD': data.input.right = true; break;
+        case 'ArrowUp': data.input.arrowUp = true; break;
+        case 'ArrowDown': data.input.arrowDown = true; break;
+        case 'ArrowLeft': data.input.arrowLeft = true; break;
+        case 'ArrowRight': data.input.arrowRight = true; break;
       }
     };
     const handleMouseMove = (e: MouseEvent) => {
@@ -433,3 +433,5 @@ export default function Game({
 
   return <div ref={mountRef} className="absolute inset-0 z-0" />;
 }
+
+    

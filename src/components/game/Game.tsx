@@ -213,13 +213,13 @@ export default function Game({
 
     const floor = new THREE.Mesh(
       new THREE.PlaneGeometry(ARENA_SIZE, ARENA_SIZE),
-      new THREE.MeshStandardMaterial({ color: 0x333333 })
+      new THREE.MeshStandardMaterial({ color: 0xc2b280 })
     );
     floor.rotation.x = -Math.PI / 2;
     floor.receiveShadow = true;
     data.scene.add(floor);
     
-    const wallMaterial = new THREE.MeshStandardMaterial({ color: 0x444444 });
+    const wallMaterial = new THREE.MeshStandardMaterial({ color: 0x808080 });
     const wallY = 2.5;
     const wallDepth = 1;
     const halfArena = ARENA_SIZE / 2;
@@ -237,20 +237,16 @@ export default function Game({
     wall4.position.x = halfArena; wall4.position.y = wallY; wall4.receiveShadow = true;
     data.scene.add(wall4);
 
-    const obstacleGeometries = [
-      new THREE.BoxGeometry(3, 3, 3),
-      new THREE.SphereGeometry(2, 16, 16),
-      new THREE.ConeGeometry(2, 4, 16),
-      new THREE.CylinderGeometry(1.5, 1.5, 3, 16),
-    ];
+    const obstacleColors = [0x556B2F, 0x8B4513, 0x6B8E23]; // Olive, SaddleBrown, OliveDrab
     
     for (let i = 0; i < 15; i++) {
-        const geometry = obstacleGeometries[Math.floor(Math.random() * obstacleGeometries.length)];
-        const material = new THREE.MeshStandardMaterial({ color: 0xADD8E6 });
+        const size = Math.random() * 2 + 1;
+        const geometry = new THREE.BoxGeometry(size, size, size);
+        const material = new THREE.MeshStandardMaterial({ color: obstacleColors[Math.floor(Math.random() * obstacleColors.length)] });
         const obstacle = new THREE.Mesh(geometry, material);
         obstacle.position.set(
             (Math.random() - 0.5) * (ARENA_SIZE - 10),
-            geometry.parameters.height ? geometry.parameters.height / 2 : 1.5,
+            size / 2,
             (Math.random() - 0.5) * (ARENA_SIZE - 10)
         );
         obstacle.castShadow = true;

@@ -1,6 +1,6 @@
 "use client";
 
-import { Heart, Target, Waves } from 'lucide-react';
+import { Heart, Target, Waves, Users } from 'lucide-react';
 import { cn } from "@/lib/utils";
 import * as ProgressPrimitive from "@radix-ui/react-progress";
 import React from 'react';
@@ -32,9 +32,10 @@ type HUDProps = {
   score: number;
   wave: number;
   waveMessage: string;
+  zombiesRemaining: number;
 };
 
-export function HUD({ health, score, wave, waveMessage }: HUDProps) {
+export function HUD({ health, score, wave, waveMessage, zombiesRemaining }: HUDProps) {
   return (
     <div className="pointer-events-none fixed inset-0 z-10 p-4 lg:p-8 text-primary-foreground font-mono">
       {/* Top Left: Score & Wave */}
@@ -46,6 +47,10 @@ export function HUD({ health, score, wave, waveMessage }: HUDProps) {
         <div className="flex items-center gap-2 bg-black/30 p-2 rounded-md">
           <Waves className="h-6 w-6 text-accent" />
           <span className="text-2xl font-bold">WAVE {wave}</span>
+        </div>
+         <div className="flex items-center gap-2 bg-black/30 p-2 rounded-md">
+          <Users className="h-6 w-6 text-accent" />
+          <span className="text-2xl font-bold">REMAINING: {zombiesRemaining}</span>
         </div>
       </div>
 

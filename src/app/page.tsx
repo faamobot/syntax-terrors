@@ -15,6 +15,7 @@ export default function Home() {
   const [gameState, setGameState] = useState<GameState>('start');
   const [score, setScore] = useState(0);
   const [wave, setWave] = useState(0);
+  const [zombiesRemaining, setZombiesRemaining] = useState(0);
   const [health, setHealth] = useState(100);
   const [highScore, setHighScore] = useState(0);
   const [wasDamaged, setWasDamaged] = useState(false);
@@ -45,6 +46,7 @@ export default function Home() {
     setScore(0);
     setWave(0);
     setHealth(100);
+    setZombiesRemaining(0);
     setGameState('playing');
     setWaveMessage('');
   };
@@ -90,6 +92,7 @@ export default function Home() {
           wave={wave} 
           health={health}
           waveMessage={waveMessage}
+          zombiesRemaining={zombiesRemaining}
         />
       )}
       
@@ -106,6 +109,7 @@ export default function Home() {
           setScore={setScore}
           setWave={setWave}
           setHealth={setHealth}
+          setZombiesRemaining={setZombiesRemaining}
           onGameOver={gameOver}
           onPause={pauseGame}
           onTakeDamage={handleTakeDamage}

@@ -11,6 +11,7 @@ type GameProps = {
   setScore: Dispatch<SetStateAction<number>>;
   setWave: Dispatch<SetStateAction<number>>;
   setHealth: Dispatch<SetStateAction<number>>;
+  setZombiesRemaining: Dispatch<SetStateAction<number>>;
   onGameOver: () => void;
   onPause: () => void;
   onTakeDamage: () => void;
@@ -36,6 +37,7 @@ export default function Game({
   setScore,
   setWave,
   setHealth,
+  setZombiesRemaining,
   onGameOver,
   onPause,
   onTakeDamage,
@@ -95,6 +97,8 @@ export default function Game({
         difficulty: 'normal',
       });
       
+      setZombiesRemaining(waveData.zombies.length);
+      
       if(waveData.messageToPlayer) {
         setWaveMessage(waveData.messageToPlayer);
         setTimeout(() => setWaveMessage(''), 4000);
@@ -147,18 +151,19 @@ export default function Game({
         }, 2000);
     }
 
-  }, [wave, setWave, setWaveMessage, toast]);
+  }, [wave, setWave, setWaveMessage, toast, setZombiesRemaining]);
 
   const despawnZombie = useCallback((zombie: Zombie) => {
     const { current: data } = gameData;
     data.scene.remove(zombie);
     data.zombies = data.zombies.filter(z => z !== zombie);
     setScore(s => s + 100);
+    setZombiesRemaining(r => r - 1);
 
     if (data.zombies.length === 0 && !data.waveInProgress) {
       startNewWave();
     }
-  }, [setScore, startNewWave]);
+  }, [setScore, startNewWave, setZombiesRemaining]);
 
   const applyDamage = useCallback((zombie: Zombie, damage: number) => {
     zombie.health -= damage;
@@ -267,14 +272,22 @@ export default function Game({
 
     const handleKeyDown = (e: KeyboardEvent) => {
       switch (e.code) {
-        case 'KeyW': data.input.forward = true; break;
-        case 'KeyS': data.input.backward = true; break;
-        case 'KeyA': data.input.left = true; break;
-        case 'KeyD': data.input.right = true; break;
-        case 'ArrowUp': data.input.lookUp = true; break;
-        case 'ArrowDown': data.input.lookDown = true; break;
-        case 'ArrowLeft': data.input.lookLeft = true; break;
-        case 'ArrowRight': data.input.lookRight = true; break;
+        case 'KeyW':
+        case 'ArrowUp':
+          data.input.forward = true;
+          break;
+        case 'KeyS':
+        case 'ArrowDown':
+          data.input.backward = true;
+          break;
+        case 'KeyA':
+        case 'ArrowLeft':
+          data.input.left = true;
+          break;
+        case 'KeyD':
+        case 'ArrowRight':
+          data.input.right = true;
+          break;
         case 'KeyF': data.input.shoot = true; break;
         case 'Space': data.input.jump = true; break;
         case 'ShiftLeft': data.input.sprint = true; break;
@@ -282,14 +295,22 @@ export default function Game({
     };
     const handleKeyUp = (e: KeyboardEvent) => {
        switch (e.code) {
-        case 'KeyW': data.input.forward = false; break;
-        case 'KeyS': data.input.backward = false; break;
-        case 'KeyA': data.input.left = false; break;
-        case 'KeyD': data.input.right = false; break;
-        case 'ArrowUp': data.input.lookUp = false; break;
-        case 'ArrowDown': data.input.lookDown = false; break;
-        case 'ArrowLeft': data.input.lookLeft = false; break;
-        case 'ArrowRight': data.input.lookRight = false; break;
+        case 'KeyW':
+        case 'ArrowUp':
+          data.input.forward = false;
+          break;
+        case 'KeyS':
+        case 'ArrowDown':
+          data.input.backward = false;
+          break;
+        case 'KeyA':
+        case 'ArrowLeft':
+          data.input.left = false;
+          break;
+        case 'KeyD':
+        case 'ArrowRight':
+          data.input.right = false;
+          break;
         case 'KeyF': data.input.shoot = false; break;
         case 'Space': data.input.jump = false; break;
         case 'ShiftLeft': data.input.sprint = false; break;
@@ -372,11 +393,10 @@ export default function Game({
       data.onGround = false;
       const playerCollider = new THREE.Box3().setFromObject(data.player);
       const playerHeight = (playerCollider.max.y - playerCollider.min.y);
-      const playerHalfHeight = playerHeight / 2;
       
       // 1. Ground collision
-      if (data.player.position.y < playerHalfHeight) {
-          data.player.position.y = playerHalfHeight;
+      if (data.player.position.y < playerHeight / 2) {
+          data.player.position.y = playerHeight / 2;
           data.playerVelocity.y = 0;
           data.onGround = true;
       }
@@ -387,9 +407,9 @@ export default function Game({
           const currentCollider = new THREE.Box3().setFromObject(data.player);
 
           if (currentCollider.intersectsBox(obstacleCollider)) {
-              // Check for landing on top first
-              if (prevPosition.y >= (obstacleCollider.max.y - 0.1) && data.playerVelocity.y <= 0) {
-                  data.player.position.y = obstacleCollider.max.y + playerHalfHeight;
+               // Check if landing on top
+              if (prevPosition.y >= obstacleCollider.max.y && data.playerVelocity.y <= 0) {
+                  data.player.position.y = obstacleCollider.max.y + playerHeight / 2;
                   data.playerVelocity.y = 0;
                   data.onGround = true;
               } else { // Side collision

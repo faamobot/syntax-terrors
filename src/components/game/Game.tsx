@@ -105,6 +105,7 @@ export default function Game({
   health,
   score,
   zombiesRemaining,
+  toast,
   containerRef,
 }: GameProps) {
   const mountRef = useRef<HTMLDivElement>(null);
@@ -113,7 +114,6 @@ export default function Game({
   waveRef.current = wave;
   
   const audioContextRef = useRef<AudioContext | null>(null);
-  const { toast } = useToast();
 
   const gameData = useRef({
     scene: new THREE.Scene(),
@@ -305,9 +305,9 @@ export default function Game({
     setZombiesRemaining(newRemaining);
 
     if (newRemaining <= 0) {
-        setWave(w => w + 1);
+        startNewWave(waveRef.current + 1);
     }
-  }, [setScore, setZombiesRemaining, setWave]);
+  }, [setScore, setZombiesRemaining, startNewWave]);
   
   const applyDamage = useCallback((zombie: Zombie, damage: number) => {
     playSound('zombieDamage');
@@ -393,11 +393,10 @@ export default function Game({
 
 
   useEffect(() => {
-    if (wave > 0 && gameState === 'playing') {
+    if (wave > 0 && gameState === 'playing' && zombiesRemaining === 0) {
       startNewWave(wave);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [wave, gameState]);
+  }, [wave, gameState, zombiesRemaining, startNewWave]);
 
 
   useEffect(() => {
@@ -422,10 +421,63 @@ export default function Game({
     data.player.add(data.camera);
     data.scene.add(data.player);
     
-    const gunGeo = new THREE.BoxGeometry(0.1, 0.2, 0.5); 
-    const gunMat = new THREE.MeshStandardMaterial({ color: 0x333333, metalness: 0.6, roughness: 0.4 });
-    const gun = new THREE.Mesh(gunGeo, gunMat);
-    gun.position.set(0.3, -0.3, -0.8);
+    function createAK47() {
+      const ak47 = new THREE.Group();
+      const metalMaterial = new THREE.MeshStandardMaterial({ color: 0x222222, metalness: 0.8, roughness: 0.4 });
+      const woodMaterial = new THREE.MeshStandardMaterial({ color: 0x8B4513, roughness: 0.6 });
+
+      // Body
+      const bodyGeo = new THREE.BoxGeometry(0.1, 0.15, 0.6);
+      const body = new THREE.Mesh(bodyGeo, metalMaterial);
+      body.position.z = -0.2;
+      ak47.add(body);
+
+      // Barrel
+      const barrelGeo = new THREE.CylinderGeometry(0.02, 0.02, 0.5, 16);
+      const barrel = new THREE.Mesh(barrelGeo, metalMaterial);
+      barrel.rotation.x = Math.PI / 2;
+      barrel.position.z = -0.75;
+      ak47.add(barrel);
+
+      // Stock
+      const stockGeo = new THREE.BoxGeometry(0.08, 0.12, 0.4);
+      const stock = new THREE.Mesh(stockGeo, woodMaterial);
+      stock.position.z = 0.3;
+      stock.position.y = -0.05;
+      stock.rotation.x = 0.2;
+      ak47.add(stock);
+
+      // Handguard
+      const handguardGeo = new THREE.BoxGeometry(0.09, 0.08, 0.4);
+      const handguard = new THREE.Mesh(handguardGeo, woodMaterial);
+      handguard.position.z = -0.4;
+      handguard.position.y = 0.02;
+      ak47.add(handguard);
+
+      // Magazine
+      const magazineGeo = new THREE.BoxGeometry(0.08, 0.3, 0.2);
+      const magazine = new THREE.Mesh(magazineGeo, metalMaterial);
+      magazine.position.z = -0.15;
+      magazine.position.y = -0.18;
+      magazine.rotation.x = -0.3;
+      ak47.add(magazine);
+
+      // Sight
+      const sightGeo = new THREE.BoxGeometry(0.02, 0.05, 0.02);
+      const frontSight = new THREE.Mesh(sightGeo, metalMaterial);
+      frontSight.position.set(0, 0.08, -0.9);
+      ak47.add(frontSight);
+      const rearSight = new THREE.Mesh(sightGeo, metalMaterial);
+      rearSight.position.set(0, 0.1, -0.05);
+      ak47.add(rearSight);
+      
+      ak47.position.set(0.3, -0.3, -0.8);
+      ak47.rotation.y = -0.1; // Slight angle
+      
+      return ak47;
+    }
+
+    const gun = createAK47();
     data.camera.add(gun);
 
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);

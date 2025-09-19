@@ -156,13 +156,15 @@ export default function Game({
     data.zombies = data.zombies.filter(z => z !== zombie);
     setScore(s => s + 100);
 
-    const newRemaining = zombiesRemaining - 1;
-    setZombiesRemaining(newRemaining);
+    setZombiesRemaining(prev => {
+        const newRemaining = prev - 1;
+        if (newRemaining <= 0 && !data.waveInProgress) {
+            startNewWave(wave + 1);
+        }
+        return newRemaining;
+    });
 
-    if (newRemaining <= 0 && !data.waveInProgress) {
-        startNewWave(wave + 1);
-    }
-  }, [setScore, startNewWave, setZombiesRemaining, wave, zombiesRemaining]);
+  }, [setScore, startNewWave, setZombiesRemaining, wave]);
 
   const applyDamage = useCallback((zombie: Zombie, damage: number) => {
     zombie.health -= damage;
@@ -271,22 +273,14 @@ export default function Game({
 
     const handleKeyDown = (e: KeyboardEvent) => {
       switch (e.code) {
-        case 'KeyW':
-        case 'ArrowUp':
-          data.input.forward = true;
-          break;
-        case 'KeyS':
-        case 'ArrowDown':
-          data.input.backward = true;
-          break;
-        case 'KeyA':
-        case 'ArrowLeft':
-          data.input.left = true;
-          break;
-        case 'KeyD':
-        case 'ArrowRight':
-          data.input.right = true;
-          break;
+        case 'KeyW': data.input.forward = true; break;
+        case 'KeyS': data.input.backward = true; break;
+        case 'KeyA': data.input.left = true; break;
+        case 'KeyD': data.input.right = true; break;
+        case 'ArrowUp': data.input.lookUp = true; break;
+        case 'ArrowDown': data.input.lookDown = true; break;
+        case 'ArrowLeft': data.input.lookLeft = true; break;
+        case 'ArrowRight': data.input.lookRight = true; break;
         case 'KeyF': data.input.shoot = true; break;
         case 'Space': data.input.jump = true; break;
         case 'ShiftLeft': data.input.sprint = true; break;
@@ -294,22 +288,14 @@ export default function Game({
     };
     const handleKeyUp = (e: KeyboardEvent) => {
        switch (e.code) {
-        case 'KeyW':
-        case 'ArrowUp':
-          data.input.forward = false;
-          break;
-        case 'KeyS':
-        case 'ArrowDown':
-          data.input.backward = false;
-          break;
-        case 'KeyA':
-        case 'ArrowLeft':
-          data.input.left = false;
-          break;
-        case 'KeyD':
-        case 'ArrowRight':
-          data.input.right = false;
-          break;
+        case 'KeyW': data.input.forward = false; break;
+        case 'KeyS': data.input.backward = false; break;
+        case 'KeyA': data.input.left = false; break;
+        case 'KeyD': data.input.right = false; break;
+        case 'ArrowUp': data.input.lookUp = false; break;
+        case 'ArrowDown': data.input.lookDown = false; break;
+        case 'ArrowLeft': data.input.lookLeft = false; break;
+        case 'ArrowRight': data.input.lookRight = false; break;
         case 'KeyF': data.input.shoot = false; break;
         case 'Space': data.input.jump = false; break;
         case 'ShiftLeft': data.input.sprint = false; break;
@@ -342,6 +328,13 @@ export default function Game({
       if (gameState !== 'playing' || !data.renderer) return;
 
       const delta = clock.getDelta();
+      
+      const cameraSpeed = 1.5 * delta;
+      if (data.input.lookUp) data.camera.rotation.x += cameraSpeed;
+      if (data.input.lookDown) data.camera.rotation.x -= cameraSpeed;
+      if (data.input.lookLeft) data.player.rotation.y += cameraSpeed;
+      if (data.input.lookRight) data.player.rotation.y -= cameraSpeed;
+      data.camera.rotation.x = THREE.MathUtils.clamp(data.camera.rotation.x, -Math.PI / 2, Math.PI / 2);
 
       const baseSpeed = 8.0;
       const sprintSpeed = 12.0;
@@ -405,7 +398,7 @@ export default function Game({
               
               const wasOnTop = prevPosition.y >= obstacleCollider.max.y;
 
-              if (wasOnTop && data.playerVelocity.y <= 0) {
+              if (wasOnTop && data.playerVelocity.y <= 0 && data.player.position.y < obstacleCollider.max.y + playerHeight/2) {
                   data.player.position.y = obstacleCollider.max.y + playerHeight / 2;
                   data.playerVelocity.y = 0;
                   data.onGround = true;

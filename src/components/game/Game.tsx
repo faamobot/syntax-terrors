@@ -422,6 +422,8 @@ export default function Game({
   }, [setScore, setZombiesRemaining, playSound, setPlayerMessage, setSpecialAmmo]);
   
   const applyDamage = useCallback((zombie: Zombie, damage: number) => {
+    if (zombie.health <= 0) return; // Already dead
+    
     playSound('zombieDamage');
     zombie.health -= damage;
     const damageColor = new THREE.Color(0xff0000);
@@ -448,14 +450,14 @@ export default function Game({
   const handleShoot = useCallback(() => {
     const { current: data } = gameData;
     const time = performance.now();
-
+  
     const fireRate = currentWeapon === 'special' ? 400 : 200;
     if (time - data.lastShotTime < fireRate) return;
     data.lastShotTime = time;
-    
+  
     let bulletColor: number;
     let bulletDamage: number;
-
+  
     if (currentWeapon === 'special') {
       if (specialAmmo <= 0) {
         setCurrentWeapon('standard');
@@ -468,53 +470,56 @@ export default function Game({
       bulletColor = 0xffff00; // Yellow for standard
       bulletDamage = data.baseBulletDamage;
     }
-
+  
     playSound('shoot');
-
+  
     // Step 1: Raycast to see what we hit
     const raycaster = new THREE.Raycaster();
     const rayDirection = new THREE.Vector3();
+    // THE CRITICAL FIX: Use the correct `rayDirection` vector
     data.camera.getWorldDirection(rayDirection);
     raycaster.set(data.camera.position, rayDirection);
-
+  
+    // Check for hits against zombies
     const intersects = raycaster.intersectObjects(data.zombies, true);
-
+  
     if (intersects.length > 0) {
-        let hitObject = intersects[0].object;
-        let targetZombie: Zombie | null = null;
-        
-        // Traverse up the hierarchy to find the main zombie group
-        let current: THREE.Object3D | null = hitObject;
-        while (current) {
-            if ((current as any).isZombie) {
-            targetZombie = current as Zombie;
-            break;
-            }
-            current = current.parent;
+      let hitObject = intersects[0].object;
+      let targetZombie: Zombie | null = null;
+  
+      // Traverse up to find the main zombie group if a part was hit
+      let current: THREE.Object3D | null = hitObject;
+      while (current) {
+        if ((current as any).isZombie) {
+          targetZombie = current as Zombie;
+          break;
         }
-
-        if (targetZombie && targetZombie.health > 0) {
-            applyDamage(targetZombie, bulletDamage);
-        }
+        current = current.parent;
+      }
+  
+      // If we found a valid zombie, apply damage
+      if (targetZombie) {
+        applyDamage(targetZombie, bulletDamage);
+      }
     }
-
-    // Step 2: Create the visual bullet effect
+  
+    // Step 2: Create the visual bullet tracer
     const bulletMaterial = new THREE.MeshBasicMaterial({ color: bulletColor });
     const bulletGeometry = new THREE.SphereGeometry(0.1, 8, 8);
     const bullet = new THREE.Mesh(bulletGeometry, bulletMaterial) as Bullet;
-    
+  
+    // Use a fresh vector for the bullet's movement
     const bulletVelocityVector = new THREE.Vector3();
     data.camera.getWorldDirection(bulletVelocityVector);
-
+  
     bullet.position.copy(data.player.position).add(bulletVelocityVector.clone().multiplyScalar(0.8));
     bullet.position.y += 1.5; // Adjust to roughly camera height
-
-    bullet.velocity = bulletVelocityVector.clone().multiplyScalar(150);
+  
+    bullet.velocity = bulletVelocityVector.multiplyScalar(150);
     bullet.spawnTime = time;
-
+  
     data.scene.add(bullet);
     data.bullets.push(bullet);
-
   }, [applyDamage, playSound, currentWeapon, specialAmmo, setSpecialAmmo, setCurrentWeapon, gameData.current.baseBulletDamage]);
 
   useEffect(() => {
@@ -803,11 +808,11 @@ export default function Game({
       const time = performance.now();
       
       // Camera Look (Arrow keys)
-      const cameraSpeed = 1.5 * delta;
-      if (data.input.lookUp) data.camera.rotation.x += cameraSpeed;
-      if (data.input.lookDown) data.camera.rotation.x -= cameraSpeed;
-      if (data.input.lookLeft) data.player.rotation.y += cameraSpeed;
-      if (data.input.lookRight) data.player.rotation.y -= cameraSpeed;
+      const lookSpeed = 1.5 * delta;
+      if (data.input.lookUp) data.camera.rotation.x += lookSpeed;
+      if (data.input.lookDown) data.camera.rotation.x -= lookSpeed;
+      if (data.input.lookLeft) data.player.rotation.y += lookSpeed;
+      if (data.input.lookRight) data.player.rotation.y -= lookSpeed;
       data.camera.rotation.x = THREE.MathUtils.clamp(data.camera.rotation.x, -Math.PI / 2, Math.PI / 2);
 
       // Player Movement (WASD)
@@ -927,6 +932,8 @@ export default function Game({
 
       // Zombie Logic
       data.zombies.forEach(zombie => {
+        if(zombie.health <= 0) return; // Skip dead zombies
+
         const zombiePrevPosition = zombie.position.clone();
         
         const bob = Math.sin(time * 0.005 * zombie.speed * 50);

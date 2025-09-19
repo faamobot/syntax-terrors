@@ -54,7 +54,7 @@ export async function generateZombieWave(input: GenerateZombieWaveInput): Promis
   const zombies = [];
   for (let i = 0; i < count; i++) {
     const type = pickType();
-    const speedBase = { walker: 0.2, runner: 0.25, brute: 0.15 }[type];
+    const speedBase = { walker: 0.02, runner: 0.04, brute: 0.01 }[type];
 
     zombies.push({
       type,

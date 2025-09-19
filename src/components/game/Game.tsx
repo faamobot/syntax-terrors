@@ -272,22 +272,14 @@ export default function Game({
 
     const handleKeyDown = (e: KeyboardEvent) => {
       switch (e.code) {
-        case 'KeyW':
-        case 'ArrowUp':
-          data.input.forward = true;
-          break;
-        case 'KeyS':
-        case 'ArrowDown':
-          data.input.backward = true;
-          break;
-        case 'KeyA':
-        case 'ArrowLeft':
-          data.input.left = true;
-          break;
-        case 'KeyD':
-        case 'ArrowRight':
-          data.input.right = true;
-          break;
+        case 'KeyW': data.input.forward = true; break;
+        case 'KeyS': data.input.backward = true; break;
+        case 'KeyA': data.input.left = true; break;
+        case 'KeyD': data.input.right = true; break;
+        case 'ArrowUp': data.input.lookUp = true; break;
+        case 'ArrowDown': data.input.lookDown = true; break;
+        case 'ArrowLeft': data.input.lookLeft = true; break;
+        case 'ArrowRight': data.input.lookRight = true; break;
         case 'KeyF': data.input.shoot = true; break;
         case 'Space': data.input.jump = true; break;
         case 'ShiftLeft': data.input.sprint = true; break;
@@ -295,22 +287,14 @@ export default function Game({
     };
     const handleKeyUp = (e: KeyboardEvent) => {
        switch (e.code) {
-        case 'KeyW':
-        case 'ArrowUp':
-          data.input.forward = false;
-          break;
-        case 'KeyS':
-        case 'ArrowDown':
-          data.input.backward = false;
-          break;
-        case 'KeyA':
-        case 'ArrowLeft':
-          data.input.left = false;
-          break;
-        case 'KeyD':
-        case 'ArrowRight':
-          data.input.right = false;
-          break;
+        case 'KeyW': data.input.forward = false; break;
+        case 'KeyS': data.input.backward = false; break;
+        case 'KeyA': data.input.left = false; break;
+        case 'KeyD': data.input.right = false; break;
+        case 'ArrowUp': data.input.lookUp = false; break;
+        case 'ArrowDown': data.input.lookDown = false; break;
+        case 'ArrowLeft': data.input.lookLeft = false; break;
+        case 'ArrowRight': data.input.lookRight = false; break;
         case 'KeyF': data.input.shoot = false; break;
         case 'Space': data.input.jump = false; break;
         case 'ShiftLeft': data.input.sprint = false; break;
@@ -358,8 +342,13 @@ export default function Game({
       const cameraTurnSpeed = 2;
       if (data.input.lookLeft) data.player.rotation.y += cameraTurnSpeed * delta;
       if (data.input.lookRight) data.player.rotation.y -= cameraTurnSpeed * delta;
-      if (data.input.lookUp) data.camera.rotation.x = THREE.MathUtils.clamp(data.camera.rotation.x + cameraTurnSpeed * delta, -Math.PI/2, Math.PI/2);
-      if (data.input.lookDown) data.camera.rotation.x = THREE.MathUtils.clamp(data.camera.rotation.x - cameraTurnSpeed * delta, -Math.PI/2, Math.PI/2);
+      
+      const currentPitch = data.camera.rotation.x;
+      let newPitch = currentPitch;
+      if (data.input.lookUp) newPitch += cameraTurnSpeed * delta;
+      if (data.input.lookDown) newPitch -= cameraTurnSpeed * delta;
+      data.camera.rotation.x = THREE.MathUtils.clamp(newPitch, -Math.PI/2, Math.PI/2);
+
 
       const playerSpeed = data.onGround ? currentSpeed : currentSpeed * 0.3;
       if (moveDirection.lengthSq() > 0) {

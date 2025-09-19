@@ -287,25 +287,61 @@ export default function Game({
     wall4.position.x = halfArena; wall4.position.y = wallY; wall4.receiveShadow = true;
     data.scene.add(wall4);
 
-    const obstacleColors = [0x556B2F, 0x8B4513, 0x6B8E23];
+    const obstacleMaterial = new THREE.MeshStandardMaterial({ color: 0x8B4513 });
+
+    const createObstacle = (
+      position: THREE.Vector3,
+      size: THREE.Vector3,
+      rotation: number = 0
+    ) => {
+      const geometry = new THREE.BoxGeometry(size.x, size.y, size.z);
+      const obstacle = new THREE.Mesh(geometry, obstacleMaterial);
+      obstacle.position.copy(position);
+      obstacle.rotation.y = rotation;
+      obstacle.castShadow = true;
+      obstacle.receiveShadow = true;
+      data.scene.add(obstacle);
+      data.obstacles.push(obstacle);
+    };
+
+    // Central building
+    createObstacle(new THREE.Vector3(0, 1.5, 0), new THREE.Vector3(10, 3, 10));
+
+    // Outer walls/barriers
+    createObstacle(new THREE.Vector3(-20, 1, 25), new THREE.Vector3(20, 2, 2), Math.PI / 4);
+    createObstacle(new THREE.Vector3(20, 1, -25), new THREE.Vector3(20, 2, 2), Math.PI / 4);
     
-    for (let i = 0; i < 15; i++) {
-        const sizeX = Math.random() * 4 + 2;
-        const sizeY = Math.random() * 2 + 0.5;
-        const sizeZ = Math.random() * 4 + 2;
-        const geometry = new THREE.BoxGeometry(sizeX, sizeY, sizeZ);
-        const material = new THREE.MeshStandardMaterial({ color: obstacleColors[Math.floor(Math.random() * obstacleColors.length)] });
-        const obstacle = new THREE.Mesh(geometry, material);
-        obstacle.position.set(
-            (Math.random() - 0.5) * (ARENA_SIZE - 10),
-            sizeY / 2,
-            (Math.random() - 0.5) * (ARENA_SIZE - 10)
-        );
-        obstacle.castShadow = true;
-        obstacle.receiveShadow = true;
-        data.scene.add(obstacle);
-        data.obstacles.push(obstacle);
-    }
+    // Smaller cover objects
+    createObstacle(new THREE.Vector3(15, 0.75, 15), new THREE.Vector3(4, 1.5, 6));
+    createObstacle(new THREE.Vector3(-15, 0.75, -15), new THREE.Vector3(6, 1.5, 4));
+    createObstacle(new THREE.Vector3(30, 1, 0), new THREE.Vector3(2, 2, 8));
+    createObstacle(new THREE.Vector3(-30, 1, 0), new THREE.Vector3(2, 2, 8));
+
+    // Jersey barriers
+    const barrierGeo = new THREE.BoxGeometry(2, 1.5, 6);
+    const barrierMat = new THREE.MeshStandardMaterial({ color: 0xa9a9a9 });
+
+    const barrier1 = new THREE.Mesh(barrierGeo, barrierMat);
+    barrier1.position.set(-10, 0.75, 20);
+    barrier1.castShadow = true;
+    barrier1.receiveShadow = true;
+    data.scene.add(barrier1);
+    data.obstacles.push(barrier1);
+
+    const barrier2 = new THREE.Mesh(barrierGeo, barrierMat);
+    barrier2.position.set(-10, 0.75, 13);
+    barrier2.castShadow = true;
+    barrier2.receiveShadow = true;
+    data.scene.add(barrier2);
+    data.obstacles.push(barrier2);
+    
+    const barrier3 = new THREE.Mesh(barrierGeo, barrierMat);
+    barrier3.position.set(10, 0.75, -20);
+    barrier3.rotation.y = Math.PI/2;
+    barrier3.castShadow = true;
+    barrier3.receiveShadow = true;
+    data.scene.add(barrier3);
+    data.obstacles.push(barrier3);
 
     const handleKeyDown = (e: KeyboardEvent) => {
       switch (e.code) {
@@ -328,10 +364,10 @@ export default function Game({
         case 'KeyS': data.input.backward = false; break;
         case 'KeyA': data.input.left = false; break;
         case 'KeyD': data.input.right = false; break;
-        case 'ArrowUp': data.input.lookUp = true; break;
-        case 'ArrowDown': data.input.lookDown = true; break;
+        case 'ArrowUp': data.input.lookUp = false; break;
+        case 'ArrowDown': data.input.lookDown = false; break;
         case 'ArrowLeft': data.input.lookLeft = false; break;
-        case 'ArrowRight': data.input.lookRight = true; break;
+        case 'ArrowRight': data.input.lookRight = false; break;
         case 'KeyF': data.input.shoot = false; break;
         case 'Space': data.input.jump = false; break;
         case 'ShiftLeft': data.input.sprint = false; break;

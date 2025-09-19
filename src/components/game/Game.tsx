@@ -31,6 +31,11 @@ type Zombie = THREE.Mesh & {
   originalColor: THREE.Color;
 };
 
+type Bullet = THREE.Mesh & {
+  velocity: THREE.Vector3;
+  spawnTime: number;
+};
+
 const ARENA_SIZE = 100;
 
 export default function Game({
@@ -66,6 +71,7 @@ export default function Game({
     ),
     zombies: [] as Zombie[],
     obstacles: [] as THREE.Mesh[],
+    bullets: [] as Bullet[],
     
     input: {
       forward: false,
@@ -197,14 +203,34 @@ export default function Game({
     if (time - data.lastShotTime < 200) return;
     data.lastShotTime = time;
 
-    const raycaster = new THREE.Raycaster();
-    raycaster.setFromCamera(new THREE.Vector2(), data.camera);
+    const bulletMaterial = new THREE.MeshBasicMaterial({ color: 0xffff00 });
+    const bulletGeometry = new THREE.SphereGeometry(0.05, 8, 8);
+    const bullet = new THREE.Mesh(bulletGeometry, bulletMaterial) as Bullet;
+    
+    const vector = new THREE.Vector3();
+    data.camera.getWorldDirection(vector);
+
+    bullet.position.copy(data.player.position).add(vector.multiplyScalar(0.8));
+    bullet.position.y += 1.5;
+
+    bullet.velocity = vector.multiplyScalar(150);
+    bullet.spawnTime = time;
+
+    data.scene.add(bullet);
+    data.bullets.push(bullet);
+
+    const raycaster = new THREE.Raycaster(
+        bullet.position.clone(),
+        vector.normalize()
+    );
     
     const intersects = raycaster.intersectObjects(data.zombies);
 
     if (intersects.length > 0) {
       const zombie = intersects[0].object as Zombie;
-      applyDamage(zombie, 20);
+      if (intersects[0].distance < 100) { // Limit range
+          applyDamage(zombie, 20);
+      }
     }
   }, [applyDamage]);
 
@@ -338,6 +364,7 @@ export default function Game({
       if (gameState !== 'playing' || !data.renderer) return;
 
       const delta = clock.getDelta();
+      const time = performance.now();
       
       const cameraSpeed = 1.5 * delta;
       if (data.input.lookUp) data.camera.rotation.x += cameraSpeed;
@@ -463,6 +490,20 @@ export default function Game({
         }
       });
       
+      data.bullets.forEach((bullet, index) => {
+        bullet.position.x += bullet.velocity.x * delta;
+        bullet.position.y += bullet.velocity.y * delta;
+        bullet.position.z += bullet.velocity.z * delta;
+
+        // Remove bullet after 2 seconds
+        if(time - bullet.spawnTime > 2000) {
+            data.scene.remove(bullet);
+            bullet.geometry.dispose();
+            (bullet.material as THREE.Material).dispose();
+            data.bullets.splice(index, 1);
+        }
+      });
+
       if(health <= 0) { 
         onGameOver();
       }

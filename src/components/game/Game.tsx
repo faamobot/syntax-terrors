@@ -109,7 +109,7 @@ export default function Game({
       }
 
       for (let i = 0; i < waveData.zombieCount; i++) {
-          const zombieMaterial = new THREE.MeshStandardMaterial({ color: 0x0d5223 });
+          const zombieMaterial = new THREE.MeshStandardMaterial({ color: 0xff0000 });
           const zombie = new THREE.Mesh(new THREE.BoxGeometry(1, 2, 1), zombieMaterial) as Zombie;
           zombie.position.set(
               (Math.random() - 0.5) * (ARENA_SIZE - 2),
@@ -202,9 +202,9 @@ export default function Game({
       new THREE.BoxGeometry(3, 3, 3),
     ];
     
-    for (let i = 0; i < 8; i++) {
+    for (let i = 0; i < 15; i++) {
         const geometry = obstacleGeometries[Math.floor(Math.random() * obstacleGeometries.length)];
-        const material = new THREE.MeshStandardMaterial({ color: 0xADD8E6 });
+        const material = new THREE.MeshStandardMaterial({ color: Math.random() * 0xffffff });
         const obstacle = new THREE.Mesh(geometry, material);
         obstacle.position.set(
             (Math.random() - 0.5) * (ARENA_SIZE - 10),
@@ -245,13 +245,13 @@ export default function Game({
     const handleKeyUp = (e: KeyboardEvent) => {
        switch (e.code) {
         case 'KeyW': data.input.forward = false; break;
-        case 'KeyS': data.input.backward = true; break;
-        case 'KeyA': data.input.left = true; break;
-        case 'KeyD': data.input.right = true; break;
-        case 'ArrowUp': data.input.arrowUp = true; break;
-        case 'ArrowDown': data.input.arrowDown = true; break;
-        case 'ArrowLeft': data.input.arrowLeft = true; break;
-        case 'ArrowRight': data.input.arrowRight = true; break;
+        case 'KeyS': data.input.backward = false; break;
+        case 'KeyA': data.input.left = false; break;
+        case 'KeyD': data.input.right = false; break;
+        case 'ArrowUp': data.input.arrowUp = false; break;
+        case 'ArrowDown': data.input.arrowDown = false; break;
+        case 'ArrowLeft': data.input.arrowLeft = false; break;
+        case 'ArrowRight': data.input.arrowRight = false; break;
       }
     };
     const handleMouseMove = (e: MouseEvent) => {

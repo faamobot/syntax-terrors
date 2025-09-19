@@ -271,6 +271,7 @@ export default function Game({
         case 'KeyS': data.input.backward = true; break;
         case 'KeyA': data.input.left = true; break;
         case 'KeyD': data.input.right = true; break;
+        case 'KeyF': data.input.shoot = true; break;
         case 'Space': data.input.jump = true; break;
         case 'ShiftLeft': data.input.sprint = true; break;
         case 'ArrowUp': data.input.arrowUp = true; break;
@@ -285,6 +286,7 @@ export default function Game({
         case 'KeyS': data.input.backward = false; break;
         case 'KeyA': data.input.left = false; break;
         case 'KeyD': data.input.right = false; break;
+        case 'KeyF': data.input.shoot = false; break;
         case 'Space': data.input.jump = false; break;
         case 'ShiftLeft': data.input.sprint = false; break;
         case 'ArrowUp': data.input.arrowUp = false; break;
@@ -293,17 +295,7 @@ export default function Game({
         case 'ArrowRight': data.input.arrowRight = false; break;
       }
     };
-    const handleMouseDown = (e: MouseEvent) => {
-        if (e.button === 2) {
-            data.input.shoot = true;
-        }
-    };
-
-    const handleMouseUp = (e: MouseEvent) => {
-        if (e.button === 2) {
-            data.input.shoot = false;
-        }
-    };
+    
     const handleMouseMove = (e: MouseEvent) => {
       if (gameState !== 'playing' || document.pointerLockElement !== containerRef.current) return;
       data.player.rotation.y -= e.movementX * 0.002;
@@ -319,8 +311,6 @@ export default function Game({
     
     document.addEventListener('keydown', handleKeyDown);
     document.addEventListener('keyup', handleKeyUp);
-    document.addEventListener('mousedown', handleMouseDown);
-    document.addEventListener('mouseup', handleMouseUp);
     document.addEventListener('mousemove', handleMouseMove);
     window.addEventListener('resize', handleResize);
     
@@ -494,8 +484,6 @@ export default function Game({
 
       document.removeEventListener('keydown', handleKeyDown);
       document.removeEventListener('keyup', handleKeyUp);
-      document.removeEventListener('mousedown', handleMouseDown);
-      document.removeEventListener('mouseup', handleMouseUp);
       document.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('resize', handleResize);
 

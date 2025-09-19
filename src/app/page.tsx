@@ -62,6 +62,9 @@ export default function Home() {
   }, [gameState]);
 
   const resumeGame = () => {
+    if (mainRef.current) {
+        mainRef.current.requestPointerLock();
+    }
     setGameState('playing');
   };
   
@@ -73,9 +76,16 @@ export default function Home() {
     setGameState('gameover');
   }, [score, highScore]);
 
+  const handleClick = () => {
+    if (gameState === 'playing' && document.pointerLockElement !== mainRef.current) {
+        mainRef.current?.requestPointerLock();
+    }
+  }
+
   return (
     <main 
       ref={mainRef}
+      onClick={handleClick}
       className="relative w-screen h-screen bg-background text-foreground font-headline overflow-hidden"
     >
       {(gameState === 'playing' || gameState === 'paused') && (
@@ -116,6 +126,7 @@ export default function Home() {
           score={score}
           health={health}
           toast={toast}
+          containerRef={mainRef}
         />
       )}
     </main>

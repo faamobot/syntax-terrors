@@ -213,7 +213,7 @@ export default function Game({
     bullet.position.copy(data.player.position).add(vector.multiplyScalar(0.8));
     bullet.position.y += 1.5;
 
-    bullet.velocity = vector.multiplyScalar(150);
+    bullet.velocity = vector.clone().multiplyScalar(150);
     bullet.spawnTime = time;
 
     data.scene.add(bullet);
@@ -538,6 +538,7 @@ export default function Game({
       
       data.zombies = [];
       data.obstacles = [];
+      data.bullets = [];
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

@@ -101,7 +101,10 @@ export default function Game({
   onTakeDamage,
   setWaveMessage,
   wave,
+  score,
   health,
+  zombiesRemaining,
+  toast,
   containerRef,
 }: GameProps) {
   const mountRef = useRef<HTMLDivElement>(null);
@@ -146,7 +149,6 @@ export default function Game({
     const { current: data } = gameData;
     
     try {
-      setWave(waveNumber);
       const waveData = await generateZombieWave({
         waveNumber: waveNumber,
         difficulty: 'normal',
@@ -196,7 +198,14 @@ export default function Game({
         variant: "destructive",
       });
     }
-  }, [setWaveMessage, toast, setZombiesRemaining, setWave]);
+  }, [setWaveMessage, toast, setZombiesRemaining]);
+
+  useEffect(() => {
+    if (wave > 0) {
+      startNewWave(wave);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wave]);
 
   const despawnZombie = useCallback((zombie: Zombie) => {
     const { current: data } = gameData;
@@ -214,12 +223,12 @@ export default function Game({
 
     setZombiesRemaining(prev => {
         const newCount = prev - 1;
-        if (newCount === 0) {
-            startNewWave(waveRef.current + 1);
+        if (newCount <= 0) {
+            setWave(w => w + 1);
         }
         return newCount;
     });
-  }, [setScore, setZombiesRemaining, startNewWave]);
+  }, [setScore, setZombiesRemaining, setWave]);
   
   const applyDamage = useCallback((zombie: Zombie, damage: number) => {
     zombie.health -= damage;
@@ -471,8 +480,6 @@ export default function Game({
     document.addEventListener('mousemove', handleMouseMove);
     window.addEventListener('resize', handleResize);
     
-    startNewWave(1);
-
     const clock = new THREE.Clock();
     const animate = () => {
       gameLoopRef.current = requestAnimationFrame(animate);

@@ -1,7 +1,31 @@
 "use client";
 
 import { Heart, Target, Waves, Shell } from 'lucide-react';
-import { Progress } from '@/components/ui/progress';
+import { cn } from "@/lib/utils";
+import * as ProgressPrimitive from "@radix-ui/react-progress";
+import React from 'react';
+
+// Custom Progress component that accepts an indicatorClassName
+const CustomProgress = React.forwardRef<
+  React.ElementRef<typeof ProgressPrimitive.Root>,
+  React.ComponentPropsWithoutRef<typeof ProgressPrimitive.Root> & { indicatorClassName?: string }
+>(({ className, value, indicatorClassName, ...props }, ref) => (
+  <ProgressPrimitive.Root
+    ref={ref}
+    className={cn(
+      "relative h-4 w-full overflow-hidden rounded-full bg-secondary",
+      className
+    )}
+    {...props}
+  >
+    <ProgressPrimitive.Indicator
+      className={cn("h-full w-full flex-1 bg-primary transition-all", indicatorClassName)}
+      style={{ transform: `translateX(-${100 - (value || 0)}%)` }}
+    />
+  </ProgressPrimitive.Root>
+));
+CustomProgress.displayName = "CustomProgress";
+
 
 type HUDProps = {
   health: number;
@@ -34,7 +58,7 @@ export function HUD({ health, score, wave, ammo, totalAmmo, isReloading, waveMes
           <Heart className="h-8 w-8 text-accent" fill="hsl(var(--accent))"/>
           <div className='w-full'>
             <span className="text-2xl font-bold">{health}</span>
-            <Progress value={health} className="h-4 bg-primary border border-accent" indicatorClassName="bg-accent" />
+            <CustomProgress value={health} className="h-4 bg-primary border border-accent" indicatorClassName="bg-accent" />
           </div>
         </div>
       </div>
@@ -61,31 +85,3 @@ export function HUD({ health, score, wave, ammo, totalAmmo, isReloading, waveMes
     </div>
   );
 }
-
-// Custom indicator class for Progress
-import { cn } from "@/lib/utils";
-import * as ProgressPrimitive from "@radix-ui/react-progress";
-import React from 'react';
-
-const OriginalProgress = React.forwardRef<
-  React.ElementRef<typeof ProgressPrimitive.Root> & { indicatorClassName?: string },
-  React.ComponentPropsWithoutRef<typeof ProgressPrimitive.Root> & { indicatorClassName?: string }
->(({ className, value, indicatorClassName, ...props }, ref) => (
-  <ProgressPrimitive.Root
-    ref={ref}
-    className={cn(
-      "relative h-4 w-full overflow-hidden rounded-full bg-secondary",
-      className
-    )}
-    {...props}
-  >
-    <ProgressPrimitive.Indicator
-      className={cn("h-full w-full flex-1 bg-primary transition-all", indicatorClassName)}
-      style={{ transform: `translateX(-${100 - (value || 0)}%)` }}
-    />
-  </ProgressPrimitive.Root>
-));
-OriginalProgress.displayName = ProgressPrimitive.Root.displayName
-
-// Override Progress to accept indicatorClassName
-(Progress as any) = OriginalProgress;

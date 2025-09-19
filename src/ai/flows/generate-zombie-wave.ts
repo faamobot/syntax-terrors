@@ -22,6 +22,7 @@ const ZombieSchema = z.object({
     health: z.number(),
     speed: z.number(),
 });
+export type ZombieData = z.infer<typeof ZombieSchema>;
 
 const GenerateZombieWaveOutputSchema = z.object({
   zombies: z.array(ZombieSchema).describe('An array of zombies to spawn for the current wave.'),
@@ -53,12 +54,11 @@ export async function generateZombieWave(input: GenerateZombieWaveInput): Promis
   const zombies = [];
   for (let i = 0; i < count; i++) {
     const type = pickType();
-    const hpBase = { walker: 30, runner: 20, brute: 80 }[type];
     const speedBase = { walker: 0.03, runner: 0.05, brute: 0.02 }[type];
 
     zombies.push({
       type,
-      health: Math.ceil(hpBase * (1 + Math.random() * 0.25) * (1 + waveNumber * 0.05)),
+      health: 100, // Standardized health
       speed: speedBase * (1 + Math.random() * 0.15 + waveNumber * 0.02),
     });
   }

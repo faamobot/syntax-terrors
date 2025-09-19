@@ -16,9 +16,6 @@ export default function Home() {
   const [score, setScore] = useState(0);
   const [wave, setWave] = useState(0);
   const [health, setHealth] = useState(100);
-  const [ammo, setAmmo] = useState(15);
-  const [totalAmmo, setTotalAmmo] = useState(60);
-  const [isReloading, setIsReloading] = useState(false);
   const [highScore, setHighScore] = useState(0);
   const [wasDamaged, setWasDamaged] = useState(false);
   const [waveMessage, setWaveMessage] = useState('');
@@ -48,9 +45,6 @@ export default function Home() {
     setScore(0);
     setWave(0);
     setHealth(100);
-    setAmmo(15);
-    setTotalAmmo(60);
-    setIsReloading(false);
     setGameState('playing');
     setWaveMessage('');
   };
@@ -94,10 +88,7 @@ export default function Home() {
         <HUD 
           score={score} 
           wave={wave} 
-          health={health} 
-          ammo={ammo} 
-          totalAmmo={totalAmmo} 
-          isReloading={isReloading}
+          health={health}
           waveMessage={waveMessage}
         />
       )}
@@ -115,11 +106,6 @@ export default function Home() {
           setScore={setScore}
           setWave={setWave}
           setHealth={setHealth}
-          setAmmo={setAmmo}
-          setTotalAmmo={setTotalAmmo}
-          ammo={ammo}
-          totalAmmo={totalAmmo}
-          setIsReloading={setIsReloading}
           onGameOver={gameOver}
           onPause={pauseGame}
           onTakeDamage={handleTakeDamage}

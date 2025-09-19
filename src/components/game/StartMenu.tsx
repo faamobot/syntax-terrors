@@ -34,7 +34,7 @@ export function StartMenu({ onStart, highScore }: StartMenuProps) {
         </CardHeader>
         <CardContent className="space-y-6">
             <div className="text-muted-foreground">
-                <p>WASD to Move | Mouse to Aim | Click to Shoot | R to Reload</p>
+                <p>WASD to Move | Mouse to Aim | F to Shoot</p>
             </div>
             <Button onClick={onStart} size="lg" className="w-full text-lg py-6">
                 Start Game

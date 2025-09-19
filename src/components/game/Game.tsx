@@ -2,7 +2,7 @@
 
 import React, { useRef, useEffect, useCallback, SetStateAction, Dispatch } from 'react';
 import * as THREE from 'three';
-import { generateZombieWave } from '@/ai/flows/generate-zombie-wave';
+import { generateZombieWave, ZombieData } from '@/ai/flows/generate-zombie-wave';
 import type { GameState } from '@/app/page';
 import { useToast } from '@/hooks/use-toast';
 
@@ -11,11 +11,6 @@ type GameProps = {
   setScore: Dispatch<SetStateAction<number>>;
   setWave: Dispatch<SetStateAction<number>>;
   setHealth: Dispatch<SetStateAction<number>>;
-  setAmmo: Dispatch<SetStateAction<number>>;
-  setTotalAmmo: Dispatch<SetStateAction<number>>;
-  ammo: number;
-  totalAmmo: number;
-  setIsReloading: Dispatch<SetStateAction<boolean>>;
   onGameOver: () => void;
   onPause: () => void;
   onTakeDamage: () => void;
@@ -31,6 +26,7 @@ type Zombie = THREE.Mesh & {
   speed: number;
   health: number;
   type: 'walker' | 'runner' | 'brute';
+  originalColor: THREE.Color;
 };
 
 const ARENA_SIZE = 100;
@@ -40,17 +36,11 @@ export default function Game({
   setScore,
   setWave,
   setHealth,
-  setAmmo,
-  setTotalAmmo,
-  ammo,
-  totalAmmo,
-  setIsReloading,
   onGameOver,
   onPause,
   onTakeDamage,
   setWaveMessage,
   wave,
-  score,
   health,
   toast,
   containerRef
@@ -67,14 +57,13 @@ export default function Game({
       new THREE.MeshStandardMaterial({ color: 0xeeeeee, visible: false })
     ),
     zombies: [] as Zombie[],
-    bullets: [] as THREE.Mesh[],
     
     input: {
       forward: false,
       backward: false,
       left: false,
       right: false,
-      reloading: false,
+      shoot: false,
       arrowUp: false,
       arrowDown: false,
       arrowLeft: false,
@@ -82,7 +71,6 @@ export default function Game({
     },
     
     playerVelocity: new THREE.Vector3(),
-    playerOnGround: true,
     
     lastShotTime: 0,
     lastDamageTime: 0,
@@ -90,8 +78,9 @@ export default function Game({
   });
 
   const startNewWave = useCallback(async () => {
-    if (gameData.current.waveInProgress) return;
-    gameData.current.waveInProgress = true;
+    const { current: data } = gameData;
+    if (data.waveInProgress) return;
+    data.waveInProgress = true;
     
     const currentWave = wave + 1;
     setWave(currentWave);
@@ -108,12 +97,12 @@ export default function Game({
       }
       
       const zombieTypes = {
-        walker: { color: 0x0d5223, geometry: new THREE.BoxGeometry(1, 2, 1) },
-        runner: { color: 0x1a8c3e, geometry: new THREE.BoxGeometry(0.8, 1.8, 0.8) },
-        brute: { color: 0x073b17, geometry: new THREE.BoxGeometry(1.5, 2.5, 1.5) },
+        walker: { color: new THREE.Color(0x0d5223), geometry: new THREE.BoxGeometry(1, 2, 1) },
+        runner: { color: new THREE.Color(0x1a8c3e), geometry: new THREE.BoxGeometry(0.8, 1.8, 0.8) },
+        brute: { color: new THREE.Color(0x073b17), geometry: new THREE.BoxGeometry(1.5, 2.5, 1.5) },
       };
 
-      waveData.zombies.forEach(zombieData => {
+      waveData.zombies.forEach((zombieData: ZombieData) => {
         const typeInfo = zombieTypes[zombieData.type];
         const zombieMaterial = new THREE.MeshStandardMaterial({ color: typeInfo.color });
         const zombie = new THREE.Mesh(typeInfo.geometry, zombieMaterial) as Zombie;
@@ -124,12 +113,14 @@ export default function Game({
             (Math.random() - 0.5) * (ARENA_SIZE - 2)
         );
         
+        zombie.castShadow = true;
         zombie.health = zombieData.health;
         zombie.speed = zombieData.speed;
         zombie.type = zombieData.type;
+        zombie.originalColor = typeInfo.color.clone();
         
-        gameData.current.scene.add(zombie);
-        gameData.current.zombies.push(zombie);
+        data.scene.add(zombie);
+        data.zombies.push(zombie);
       });
       
       if (waveData.zombies.length === 0 && currentWave > 0) {
@@ -144,10 +135,55 @@ export default function Game({
         variant: "destructive",
       });
     } finally {
-        gameData.current.waveInProgress = false;
+        data.waveInProgress = false;
     }
 
   }, [wave, setWave, setWaveMessage, toast]);
+
+  const despawnZombie = useCallback((zombie: Zombie) => {
+    const { current: data } = gameData;
+    data.scene.remove(zombie);
+    data.zombies = data.zombies.filter(z => z !== zombie);
+    setScore(s => s + 100);
+
+    if (data.zombies.length === 0 && !data.waveInProgress) {
+      startNewWave();
+    }
+  }, [setScore, startNewWave]);
+
+  const applyDamage = useCallback((zombie: Zombie, damage: number) => {
+    zombie.health -= damage;
+
+    // Visual feedback for hit
+    (zombie.material as THREE.MeshStandardMaterial).color.set(0xff0000); // Flash red
+    setTimeout(() => {
+      if(zombie.material) { // Check if zombie still exists
+         (zombie.material as THREE.MeshStandardMaterial).color.set(zombie.originalColor);
+      }
+    }, 150);
+
+    if (zombie.health <= 0) {
+      despawnZombie(zombie);
+    }
+  }, [despawnZombie]);
+  
+  const handleShoot = useCallback(() => {
+    const { current: data } = gameData;
+    const time = performance.now();
+    if (time - data.lastShotTime < 200) return; // Fire rate limit
+    data.lastShotTime = time;
+
+    const raycaster = new THREE.Raycaster();
+    raycaster.setFromCamera(new THREE.Vector2(), data.camera);
+    
+    const intersects = raycaster.intersectObjects(data.zombies);
+
+    if (intersects.length > 0) {
+      const zombie = intersects[0].object as Zombie;
+      applyDamage(zombie, 20); // 20 damage per shot
+    }
+  }, [applyDamage]);
+
 
   useEffect(() => {
     if (!mountRef.current) return;
@@ -202,10 +238,10 @@ export default function Game({
     data.scene.add(wall4);
 
     const obstacleGeometries = [
+      new THREE.BoxGeometry(3, 3, 3),
       new THREE.SphereGeometry(2, 16, 16),
       new THREE.ConeGeometry(2, 4, 16),
       new THREE.CylinderGeometry(1.5, 1.5, 3, 16),
-      new THREE.BoxGeometry(3, 3, 3),
     ];
     
     for (let i = 0; i < 15; i++) {
@@ -228,24 +264,11 @@ export default function Game({
         case 'KeyS': data.input.backward = true; break;
         case 'KeyA': data.input.left = true; break;
         case 'KeyD': data.input.right = true; break;
+        case 'KeyF': data.input.shoot = true; break;
         case 'ArrowUp': data.input.arrowUp = true; break;
         case 'ArrowDown': data.input.arrowDown = true; break;
         case 'ArrowLeft': data.input.arrowLeft = true; break;
         case 'ArrowRight': data.input.arrowRight = true; break;
-        case 'KeyR': 
-          if (!data.input.reloading && totalAmmo > 0) {
-            data.input.reloading = true;
-            setIsReloading(true);
-            setTimeout(() => {
-              const ammoNeeded = 15 - ammo;
-              const ammoToReload = Math.min(ammoNeeded, totalAmmo);
-              setAmmo(prev => prev + ammoToReload);
-              setTotalAmmo(prev => prev - ammoToReload);
-              data.input.reloading = false;
-              setIsReloading(false);
-            }, 1500);
-          }
-          break;
       }
     };
     const handleKeyUp = (e: KeyboardEvent) => {
@@ -254,6 +277,7 @@ export default function Game({
         case 'KeyS': data.input.backward = false; break;
         case 'KeyA': data.input.left = false; break;
         case 'KeyD': data.input.right = false; break;
+        case 'KeyF': data.input.shoot = false; break;
         case 'ArrowUp': data.input.arrowUp = false; break;
         case 'ArrowDown': data.input.arrowDown = false; break;
         case 'ArrowLeft': data.input.arrowLeft = false; break;
@@ -267,34 +291,6 @@ export default function Game({
       data.camera.rotation.x = THREE.MathUtils.clamp(newPitch, -Math.PI / 2, Math.PI / 2);
     };
 
-    const handleMouseDown = (e: MouseEvent) => {
-      if (gameState !== 'playing' || data.input.reloading || ammo <= 0 || document.pointerLockElement !== containerRef.current) return;
-      
-      const time = performance.now();
-      if (time - data.lastShotTime < 200) return; 
-      data.lastShotTime = time;
-
-      setAmmo(prev => prev - 1);
-      
-      const raycaster = new THREE.Raycaster();
-      raycaster.setFromCamera(new THREE.Vector2(), data.camera);
-      
-      const intersects = raycaster.intersectObjects(data.zombies);
-      if (intersects.length > 0) {
-        const zombie = intersects[0].object as Zombie;
-        zombie.health -= 50; 
-        if (zombie.health <= 0) {
-          data.scene.remove(zombie);
-          data.zombies = data.zombies.filter(z => z !== zombie);
-          setScore(s => s + 100);
-
-          if (data.zombies.length === 0) {
-            startNewWave();
-          }
-        }
-      }
-    };
-
     const handleResize = () => {
         data.camera.aspect = window.innerWidth / window.innerHeight;
         data.camera.updateProjectionMatrix();
@@ -304,7 +300,6 @@ export default function Game({
     document.addEventListener('keydown', handleKeyDown);
     document.addEventListener('keyup', handleKeyUp);
     document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mousedown', handleMouseDown);
     window.addEventListener('resize', handleResize);
     
     startNewWave();
@@ -327,6 +322,10 @@ export default function Game({
       if (moveDirection.lengthSq() > 0) {
         moveDirection.normalize().applyQuaternion(data.player.quaternion);
         data.playerVelocity.add(moveDirection.multiplyScalar(speed * delta));
+      }
+
+      if (data.input.shoot) {
+        handleShoot();
       }
       
       const rotationSpeed = 1.5 * delta;
@@ -382,7 +381,6 @@ export default function Game({
       document.removeEventListener('keydown', handleKeyDown);
       document.removeEventListener('keyup', handleKeyUp);
       document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mousedown', handleMouseDown);
       window.removeEventListener('resize', handleResize);
 
       data.zombies.forEach(z => data.scene.remove(z));
@@ -439,5 +437,3 @@ export default function Game({
 
   return <div ref={mountRef} className="absolute inset-0 z-0" />;
 }
-
-    

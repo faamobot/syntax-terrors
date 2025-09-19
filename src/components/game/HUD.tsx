@@ -1,6 +1,6 @@
 "use client";
 
-import { Heart, Target, Waves, Shell } from 'lucide-react';
+import { Heart, Target, Waves } from 'lucide-react';
 import { cn } from "@/lib/utils";
 import * as ProgressPrimitive from "@radix-ui/react-progress";
 import React from 'react';
@@ -31,13 +31,10 @@ type HUDProps = {
   health: number;
   score: number;
   wave: number;
-  ammo: number;
-  totalAmmo: number;
-  isReloading: boolean;
   waveMessage: string;
 };
 
-export function HUD({ health, score, wave, ammo, totalAmmo, isReloading, waveMessage }: HUDProps) {
+export function HUD({ health, score, wave, waveMessage }: HUDProps) {
   return (
     <div className="pointer-events-none fixed inset-0 z-10 p-4 lg:p-8 text-primary-foreground font-mono">
       {/* Top Left: Score & Wave */}
@@ -60,17 +57,6 @@ export function HUD({ health, score, wave, ammo, totalAmmo, isReloading, waveMes
             <span className="text-2xl font-bold">{health}</span>
             <CustomProgress value={health} className="h-4 bg-primary border border-accent" indicatorClassName="bg-accent" />
           </div>
-        </div>
-      </div>
-
-      {/* Bottom Right: Ammo */}
-      <div className="absolute bottom-4 right-4 lg:bottom-8 lg:right-8 flex items-end gap-2 text-right">
-        <Shell className="h-8 w-8 text-accent" />
-        <div>
-          <p className="text-4xl font-bold leading-none">
-            {isReloading ? 'RELOADING' : ammo}
-          </p>
-          <p className="text-xl">/ {totalAmmo}</p>
         </div>
       </div>
 

@@ -91,36 +91,46 @@ export default function Game({
     const currentWave = wave + 1; // Use the upcoming wave number
     setWave(currentWave);
     
-    const waveData = await generateZombieWave({
-      waveNumber: currentWave,
-      playerScore: score,
-      timeSurvived: 0, // Simplified for hackathon
-      playerHealth: health,
-    });
-    
-    if(waveData.messageToPlayer) {
-      setWaveMessage(waveData.messageToPlayer);
-      setTimeout(() => setWaveMessage(''), 4000);
+    try {
+      const waveData = await generateZombieWave({
+        waveNumber: currentWave,
+        playerScore: score,
+        timeSurvived: 0, // Simplified for hackathon
+        playerHealth: health,
+      });
+      
+      if(waveData.messageToPlayer) {
+        setWaveMessage(waveData.messageToPlayer);
+        setTimeout(() => setWaveMessage(''), 4000);
+      }
+
+      for (let i = 0; i < waveData.zombieCount; i++) {
+          const zombieMaterial = new THREE.MeshStandardMaterial({ color: 0x803333 });
+          const zombie = new THREE.Mesh(new THREE.BoxGeometry(1, 2, 1), zombieMaterial) as Zombie;
+          zombie.position.set(
+              (Math.random() - 0.5) * (ARENA_SIZE - 2),
+              1,
+              (Math.random() - 0.5) * (ARENA_SIZE - 2)
+          );
+          zombie.health = 100 * waveData.zombieHealthMultiplier;
+          zombie.speed = 0.03 * waveData.zombieSpeedMultiplier;
+          gameData.current.scene.add(zombie);
+          gameData.current.zombies.push(zombie);
+      }
+      
+      // Wave is in progress as long as there are zombies
+      gameData.current.waveInProgress = waveData.zombieCount > 0;
+    } catch (e) {
+      console.error("Failed to generate zombie wave:", e);
+      toast({
+        title: "Error",
+        description: "Could not generate next zombie wave. Please try again.",
+        variant: "destructive",
+      });
+      gameData.current.waveInProgress = false;
     }
 
-    for (let i = 0; i < waveData.zombieCount; i++) {
-        const zombieMaterial = new THREE.MeshStandardMaterial({ color: 0x803333 });
-        const zombie = new THREE.Mesh(new THREE.BoxGeometry(1, 2, 1), zombieMaterial) as Zombie;
-        zombie.position.set(
-            (Math.random() - 0.5) * (ARENA_SIZE - 2),
-            1,
-            (Math.random() - 0.5) * (ARENA_SIZE - 2)
-        );
-        zombie.health = 100 * waveData.zombieHealthMultiplier;
-        zombie.speed = 0.03 * waveData.zombieSpeedMultiplier;
-        gameData.current.scene.add(zombie);
-        gameData.current.zombies.push(zombie);
-    }
-    
-    // Wave is in progress as long as there are zombies
-    gameData.current.waveInProgress = waveData.zombieCount > 0;
-
-  }, [wave, score, health, setWave, setWaveMessage]);
+  }, [wave, score, health, setWave, setWaveMessage, toast]);
 
   useEffect(() => {
     if (!mountRef.current) return;
@@ -275,17 +285,26 @@ export default function Game({
     // Initial "wave" to set things up (will spawn 0 zombies)
     (async () => {
       setWave(0);
-      const waveData = await generateZombieWave({
-          waveNumber: 0,
-          playerScore: 0,
-          timeSurvived: 0,
-          playerHealth: 100,
-      });
-      if(waveData.messageToPlayer) {
-          setWaveMessage(waveData.messageToPlayer);
-          setTimeout(() => setWaveMessage(''), 4000);
+      try {
+        const waveData = await generateZombieWave({
+            waveNumber: 0,
+            playerScore: 0,
+            timeSurvived: 0,
+            playerHealth: 100,
+        });
+        if(waveData.messageToPlayer) {
+            setWaveMessage(waveData.messageToPlayer);
+            setTimeout(() => setWaveMessage(''), 4000);
+        }
+        gameData.current.waveInProgress = false; // Wave 0 has no zombies
+      } catch(e) {
+         console.error("Failed to generate initial wave:", e);
+         toast({
+          title: "Error",
+          description: "Could not start the game. Please try refreshing.",
+          variant: "destructive",
+        });
       }
-      gameData.current.waveInProgress = false; // Wave 0 has no zombies
     })();
 
 
@@ -383,8 +402,11 @@ export default function Game({
     };
 
     const onPointerLockError = () => {
-      // This can be noisy, so we'll leave it out for now.
-      // A toast could be shown here if needed.
+      toast({
+        title: "Pointer Lock Error",
+        description: "Could not lock the mouse cursor. This can happen if the window is not in focus.",
+        variant: "destructive",
+      });
     };
 
     document.addEventListener('pointerlockchange', onPointerLockChange, false);
@@ -402,7 +424,7 @@ export default function Game({
       document.removeEventListener('pointerlockchange', onPointerLockChange, false);
       document.removeEventListener('pointerlockerror', onPointerLockError, false);
     }
-  }, [gameState, onPause, containerRef]);
+  }, [gameState, onPause, containerRef, toast]);
   
   useEffect(() => {
     if(health <= 0) {

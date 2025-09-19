@@ -1,4 +1,3 @@
-// src/ai/flows/generate-zombie-wave.ts
 'use server';
 
 /**
@@ -15,9 +14,9 @@ import {z} from 'genkit';
 
 const GenerateZombieWaveInputSchema = z.object({
   waveNumber: z.number().describe('The current wave number. This will be 0 for the very first "wave", which should result in 0 zombies.'),
-  playerScore: z.number().describe('The player\'s current score.'),
+  playerScore: z.number().describe("The player's current score."),
   timeSurvived: z.number().describe('The time the player has survived in seconds.'),
-  playerHealth: z.number().describe('The player\'s current health percentage (0-100).'),
+  playerHealth: z.number().describe("The player's current health percentage (0-100)."),
 });
 export type GenerateZombieWaveInput = z.infer<typeof GenerateZombieWaveInputSchema>;
 

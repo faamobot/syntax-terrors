@@ -24,11 +24,12 @@ type GameProps = {
   containerRef: React.RefObject<HTMLDivElement>;
 };
 
-type Zombie = THREE.Mesh & {
+type Zombie = THREE.Group & {
   speed: number;
   health: number;
   type: 'walker' | 'runner' | 'brute';
   originalColor: THREE.Color;
+  isZombie: true;
 };
 
 type Bullet = THREE.Mesh & {
@@ -37,6 +38,57 @@ type Bullet = THREE.Mesh & {
 };
 
 const ARENA_SIZE = 100;
+
+function createHumanoidZombie(type: 'walker' | 'runner' | 'brute'): THREE.Group {
+  const zombieGroup = new THREE.Group();
+  const torsoColor = new THREE.Color(0x0d5223);
+  const skinColor = new THREE.Color(0x5a6e5a);
+
+  const scale = type === 'brute' ? 1.25 : 1;
+
+  const torsoGeo = new THREE.BoxGeometry(1 * scale, 1.2 * scale, 0.5 * scale);
+  const torsoMat = new THREE.MeshStandardMaterial({ color: torsoColor });
+  const torso = new THREE.Mesh(torsoGeo, torsoMat);
+  torso.castShadow = true;
+  torso.receiveShadow = true;
+  zombieGroup.add(torso);
+
+  const headGeo = new THREE.BoxGeometry(0.6 * scale, 0.6 * scale, 0.6 * scale);
+  const headMat = new THREE.MeshStandardMaterial({ color: skinColor });
+  const head = new THREE.Mesh(headGeo, headMat);
+  head.position.y = 1 * scale;
+  head.castShadow = true;
+  head.receiveShadow = true;
+  zombieGroup.add(head);
+
+  const limbSize = { x: 0.25 * scale, y: 1.2 * scale, z: 0.25 * scale };
+  const limbMat = new THREE.MeshStandardMaterial({ color: skinColor });
+
+  // Arms
+  const leftArm = new THREE.Mesh(new THREE.BoxGeometry(limbSize.x, limbSize.y, limbSize.z), limbMat);
+  leftArm.position.set(-0.75 * scale, 0, 0);
+  leftArm.castShadow = true;
+  leftArm.receiveShadow = true;
+  zombieGroup.add(leftArm);
+
+  const rightArm = leftArm.clone();
+  rightArm.position.x = 0.75 * scale;
+  zombieGroup.add(rightArm);
+
+  // Legs
+  const leftLeg = new THREE.Mesh(new THREE.BoxGeometry(limbSize.x, limbSize.y, limbSize.z), limbMat);
+  leftLeg.position.set(-0.3 * scale, -1.2 * scale, 0);
+  leftLeg.castShadow = true;
+  leftLeg.receiveShadow = true;
+  zombieGroup.add(leftLeg);
+
+  const rightLeg = leftLeg.clone();
+  rightLeg.position.x = 0.3 * scale;
+  zombieGroup.add(rightLeg);
+
+  return zombieGroup;
+}
+
 
 export default function Game({
   gameState,
@@ -50,9 +102,7 @@ export default function Game({
   setWaveMessage,
   wave,
   health,
-  zombiesRemaining,
-  toast,
-  containerRef
+  containerRef,
 }: GameProps) {
   const mountRef = useRef<HTMLDivElement>(null);
   const gameLoopRef = useRef<number>();
@@ -110,42 +160,29 @@ export default function Game({
       }
       
       const zombieColor = new THREE.Color(0x0d5223);
-      const zombieTypes = {
-        walker: { geometry: new THREE.BoxGeometry(1, 2, 1) },
-        runner: { geometry: new THREE.BoxGeometry(0.8, 1.8, 0.8) },
-        brute: { geometry: new THREE.BoxGeometry(1.5, 2.5, 1.5) },
-      };
 
-      // Clear old zombies before adding new ones
       data.zombies.forEach(zombie => {
-        zombie.geometry.dispose();
-        if (Array.isArray(zombie.material)) {
-            zombie.material.forEach(material => material.dispose());
-        } else {
-            zombie.material.dispose();
-        }
         data.scene.remove(zombie);
       });
       data.zombies = [];
 
       waveData.zombies.forEach((zombieData: ZombieData) => {
-        const typeInfo = zombieTypes[zombieData.type];
-        const zombieMaterial = new THREE.MeshStandardMaterial({ color: zombieColor });
-        const zombie = new THREE.Mesh(typeInfo.geometry, zombieMaterial) as Zombie;
+        const zombie = createHumanoidZombie(zombieData.type) as Zombie;
         
-        const positionX = (Math.random() - 0.5) * (ARENA_SIZE - 2);
-        const positionZ = (Math.random() - 0.5) * (ARENA_SIZE - 2);
+        const positionX = (Math.random() - 0.5) * (ARENA_SIZE - 4);
+        const positionZ = (Math.random() - 0.5) * (ARENA_SIZE - 4);
         zombie.position.set(
           positionX,
-          typeInfo.geometry.parameters.height / 2,
+          1.2, // Approx height of legs
           positionZ
         );
         
         zombie.castShadow = true;
-        zombie.health = zombieData.health;
-        zombie.speed = zombieData.speed;
-        zombie.type = zombieData.type;
-        zombie.originalColor = zombieColor.clone();
+        (zombie as any).health = zombieData.health;
+        (zombie as any).speed = zombieData.speed;
+        (zombie as any).type = zombieData.type;
+        (zombie as any).originalColor = zombieColor.clone();
+        (zombie as any).isZombie = true;
         
         data.scene.add(zombie);
         data.zombies.push(zombie);
@@ -163,13 +200,15 @@ export default function Game({
 
   const despawnZombie = useCallback((zombie: Zombie) => {
     const { current: data } = gameData;
-    zombie.geometry.dispose();
-    if (Array.isArray(zombie.material)) {
-        zombie.material.forEach(material => material.dispose());
-    } else {
-        zombie.material.dispose();
-    }
+    
     data.scene.remove(zombie);
+    zombie.traverse(child => {
+        if (child instanceof THREE.Mesh) {
+            child.geometry.dispose();
+            child.material.dispose();
+        }
+    });
+
     data.zombies = data.zombies.filter(z => z !== zombie);
     setScore(s => s + 100);
 
@@ -181,15 +220,23 @@ export default function Game({
         return newCount;
     });
   }, [setScore, setZombiesRemaining, startNewWave]);
-
+  
   const applyDamage = useCallback((zombie: Zombie, damage: number) => {
     zombie.health -= damage;
 
-    (zombie.material as THREE.MeshStandardMaterial).color.set(0xff0000);
+    zombie.traverse(child => {
+        if (child instanceof THREE.Mesh) {
+            (child.material as THREE.MeshStandardMaterial).color.set(0xff0000);
+        }
+    });
+
     setTimeout(() => {
-      if(zombie.material) {
-         (zombie.material as THREE.MeshStandardMaterial).color.set(zombie.originalColor);
-      }
+        zombie.traverse(child => {
+            if (child instanceof THREE.Mesh && child.material) {
+                // This assumes torso is first, change if model changes
+                (child.material as THREE.MeshStandardMaterial).color.set(child.parent === zombie && child.geometry.type === "BoxGeometry" ? (zombie.originalColor) : new THREE.Color(0x5a6e5a));
+            }
+        });
     }, 150);
 
     if (zombie.health <= 0) {
@@ -204,7 +251,7 @@ export default function Game({
     data.lastShotTime = time;
 
     const bulletMaterial = new THREE.MeshBasicMaterial({ color: 0xffff00 });
-    const bulletGeometry = new THREE.SphereGeometry(0.05, 8, 8);
+    const bulletGeometry = new THREE.SphereGeometry(0.1, 8, 8);
     const bullet = new THREE.Mesh(bulletGeometry, bulletMaterial) as Bullet;
     
     const vector = new THREE.Vector3();
@@ -224,12 +271,26 @@ export default function Game({
         vector.normalize()
     );
     
-    const intersects = raycaster.intersectObjects(data.zombies);
+    const intersects = raycaster.intersectObjects(data.scene.children, true);
 
     if (intersects.length > 0) {
-      const zombie = intersects[0].object as Zombie;
-      if (intersects[0].distance < 100) { // Limit range
-          applyDamage(zombie, 20);
+      let hitObject = intersects[0].object;
+      let targetZombie: Zombie | null = null;
+      
+      while (hitObject) {
+        if ((hitObject as any).isZombie) {
+            targetZombie = hitObject as Zombie;
+            break;
+        }
+        if(hitObject.parent) {
+            hitObject = hitObject.parent;
+        } else {
+            break;
+        }
+      }
+
+      if (targetZombie && intersects[0].distance < 100) { 
+          applyDamage(targetZombie, 20);
       }
     }
   }, [applyDamage]);
@@ -245,6 +306,9 @@ export default function Game({
     data.renderer.setSize(window.innerWidth, window.innerHeight);
     data.renderer.shadowMap.enabled = true;
     mount.appendChild(data.renderer.domElement);
+    
+    data.scene.background = new THREE.Color(0x87CEEB);
+    data.scene.fog = new THREE.Fog(0x87CEEB, 10, ARENA_SIZE * 0.75);
 
     data.camera.position.y = 1.6;
 
@@ -259,23 +323,25 @@ export default function Game({
     gun.position.set(0.3, -0.3, -0.8);
     data.camera.add(gun);
 
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
     data.scene.add(ambientLight);
 
-    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-    directionalLight.position.set(10, 20, 5);
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 1.0);
+    directionalLight.position.set(50, 50, 50);
     directionalLight.castShadow = true;
+    directionalLight.shadow.mapSize.width = 2048;
+    directionalLight.shadow.mapSize.height = 2048;
     data.scene.add(directionalLight);
 
     const floor = new THREE.Mesh(
       new THREE.PlaneGeometry(ARENA_SIZE, ARENA_SIZE),
-      new THREE.MeshStandardMaterial({ color: 0xc2b280 })
+      new THREE.MeshStandardMaterial({ color: 0xc2b280 }) // Sand color
     );
     floor.rotation.x = -Math.PI / 2;
     floor.receiveShadow = true;
     data.scene.add(floor);
     
-    const wallMaterial = new THREE.MeshStandardMaterial({ color: 0x808080 });
+    const wallMaterial = new THREE.MeshStandardMaterial({ color: 0x6B4F35, metalness: 0.2, roughness: 0.8 });
     const wallY = 2.5;
     const wallDepth = 1;
     const halfArena = ARENA_SIZE / 2;
@@ -294,60 +360,67 @@ export default function Game({
     data.scene.add(wall4);
 
     const obstacleMaterial = new THREE.MeshStandardMaterial({ color: 0x8B4513 });
+    const concreteMaterial = new THREE.MeshStandardMaterial({ color: 0xa9a9a9 });
 
     const createObstacle = (
       position: THREE.Vector3,
       size: THREE.Vector3,
+      material: THREE.Material,
       rotation: number = 0
     ) => {
       const geometry = new THREE.BoxGeometry(size.x, size.y, size.z);
-      const obstacle = new THREE.Mesh(geometry, obstacleMaterial);
+      const obstacle = new THREE.Mesh(geometry, material);
       obstacle.position.copy(position);
       obstacle.rotation.y = rotation;
       obstacle.castShadow = true;
       obstacle.receiveShadow = true;
       data.scene.add(obstacle);
       data.obstacles.push(obstacle);
+      return obstacle;
     };
-
-    // Central building
-    createObstacle(new THREE.Vector3(0, 1.5, 0), new THREE.Vector3(10, 3, 10));
-
-    // Outer walls/barriers
-    createObstacle(new THREE.Vector3(-20, 1, 25), new THREE.Vector3(20, 2, 2), Math.PI / 4);
-    createObstacle(new THREE.Vector3(20, 1, -25), new THREE.Vector3(20, 2, 2), Math.PI / 4);
     
-    // Smaller cover objects
-    createObstacle(new THREE.Vector3(15, 0.75, 15), new THREE.Vector3(4, 1.5, 6));
-    createObstacle(new THREE.Vector3(-15, 0.75, -15), new THREE.Vector3(6, 1.5, 4));
-    createObstacle(new THREE.Vector3(30, 1, 0), new THREE.Vector3(2, 2, 8));
-    createObstacle(new THREE.Vector3(-30, 1, 0), new THREE.Vector3(2, 2, 8));
+    // Central command building
+    createObstacle(new THREE.Vector3(0, 2, 0), new THREE.Vector3(12, 4, 15), concreteMaterial);
+    
+    // Barracks
+    createObstacle(new THREE.Vector3(-30, 1.5, 20), new THREE.Vector3(15, 3, 8), obstacleMaterial);
+    createObstacle(new THREE.Vector3(30, 1.5, -20), new THREE.Vector3(15, 3, 8), obstacleMaterial, Math.PI / 2);
 
-    // Jersey barriers
+    // Watchtowers
+    const createWatchtower = (position: THREE.Vector3) => {
+        const base = createObstacle(position, new THREE.Vector3(4, 6, 4), concreteMaterial);
+        const platform = new THREE.Mesh(new THREE.BoxGeometry(5, 0.5, 5), obstacleMaterial);
+        platform.position.set(position.x, position.y + 3.25, position.z);
+        platform.castShadow = true;
+        platform.receiveShadow = true;
+        data.scene.add(platform);
+        data.obstacles.push(platform);
+    }
+    createWatchtower(new THREE.Vector3(40, 3, 40));
+    createWatchtower(new THREE.Vector3(-40, 3, -40));
+
+    // Jersey barriers for cover
     const barrierGeo = new THREE.BoxGeometry(2, 1.5, 6);
     const barrierMat = new THREE.MeshStandardMaterial({ color: 0xa9a9a9 });
-
-    const barrier1 = new THREE.Mesh(barrierGeo, barrierMat);
-    barrier1.position.set(-10, 0.75, 20);
-    barrier1.castShadow = true;
-    barrier1.receiveShadow = true;
-    data.scene.add(barrier1);
-    data.obstacles.push(barrier1);
-
-    const barrier2 = new THREE.Mesh(barrierGeo, barrierMat);
-    barrier2.position.set(-10, 0.75, 13);
-    barrier2.castShadow = true;
-    barrier2.receiveShadow = true;
-    data.scene.add(barrier2);
-    data.obstacles.push(barrier2);
     
-    const barrier3 = new THREE.Mesh(barrierGeo, barrierMat);
-    barrier3.position.set(10, 0.75, -20);
-    barrier3.rotation.y = Math.PI/2;
-    barrier3.castShadow = true;
-    barrier3.receiveShadow = true;
-    data.scene.add(barrier3);
-    data.obstacles.push(barrier3);
+    const barrierPositions = [
+        { x: -10, z: 20, rot: 0 },
+        { x: -10, z: 13, rot: 0 },
+        { x: 10, z: -20, rot: Math.PI / 2 },
+        { x: 15, z: -20, rot: Math.PI / 2 },
+        { x: 25, z: 10, rot: Math.PI / 3 },
+        { x: -25, z: -10, rot: -Math.PI / 3 },
+    ];
+    
+    barrierPositions.forEach(pos => {
+        const barrier = new THREE.Mesh(barrierGeo, barrierMat);
+        barrier.position.set(pos.x, 0.75, pos.z);
+        barrier.rotation.y = pos.rot;
+        barrier.castShadow = true;
+        barrier.receiveShadow = true;
+        data.scene.add(barrier);
+        data.obstacles.push(barrier);
+    });
 
     const handleKeyDown = (e: KeyboardEvent) => {
       switch (e.code) {
@@ -501,13 +574,18 @@ export default function Game({
 
       data.zombies.forEach(zombie => {
         const zombiePrevPosition = zombie.position.clone();
-        const zombieHeight = (zombie.geometry as THREE.BoxGeometry).parameters.height;
-        zombie.position.y = zombieHeight / 2;
+        
+        // Simple animation
+        const limbBob = Math.sin(time * 0.005 * zombie.speed * 50) * 0.4;
+        zombie.children[2].rotation.x = limbBob; // left arm
+        zombie.children[3].rotation.x = -limbBob; // right arm
+        zombie.children[4].rotation.x = -limbBob; // left leg
+        zombie.children[5].rotation.x = limbBob; // right leg
 
         zombie.lookAt(data.player.position);
         const distance = zombie.position.distanceTo(data.player.position);
 
-        if (distance > 1.5) {
+        if (distance > 2) {
             zombie.translateZ(zombie.speed);
         } else {
             const time = performance.now();
@@ -535,7 +613,6 @@ export default function Game({
         bullet.position.y += bullet.velocity.y * delta;
         bullet.position.z += bullet.velocity.z * delta;
 
-        // Remove bullet after 2 seconds
         if(time - bullet.spawnTime > 2000) {
             data.scene.remove(bullet);
             bullet.geometry.dispose();
@@ -631,3 +708,5 @@ export default function Game({
 
   return <div ref={mountRef} className="absolute inset-0 z-0" />;
 }
+
+    

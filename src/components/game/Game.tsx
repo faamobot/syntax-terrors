@@ -400,6 +400,7 @@ export default function Game({
 
     const newZombies = data.zombies.filter(z => z !== zombie);
     data.zombies = newZombies;
+    setZombiesRemaining(newZombies.length);
 
     const isClicker = zombie.type === 'clicker';
     const bonus = isClicker || Math.random() < 0.1 ? 500 : 0; 
@@ -418,8 +419,6 @@ export default function Game({
 
     setScore(s => s + 100 + bonus);
     
-    setZombiesRemaining(newZombies.length);
-
   }, [setScore, setZombiesRemaining, playSound, setPlayerMessage, setSpecialAmmo]);
   
   const applyDamage = useCallback((zombie: Zombie, damage: number) => {
@@ -452,7 +451,6 @@ export default function Game({
 
     const fireRate = currentWeapon === 'special' ? 400 : 200;
     if (time - data.lastShotTime < fireRate) return;
-
     data.lastShotTime = time;
 
     let bulletColor: number;
@@ -461,18 +459,44 @@ export default function Game({
     if (currentWeapon === 'special') {
       if (specialAmmo <= 0) {
         setCurrentWeapon('standard');
-        return;
+        return; // Switch to standard if out of special ammo
       }
-      bulletColor = 0x00ff00;
+      bulletColor = 0x00ff00; // Green for special
       bulletDamage = 25;
       setSpecialAmmo(sa => sa - 1);
     } else {
-      bulletColor = 0xffff00;
+      bulletColor = 0xffff00; // Yellow for standard
       bulletDamage = data.baseBulletDamage;
     }
 
     playSound('shoot');
 
+    // Step 1: Raycast to see what we hit
+    const raycastDirection = new THREE.Vector3();
+    data.camera.getWorldDirection(raycastDirection);
+    const raycaster = new THREE.Raycaster(data.camera.position, raycastDirection);
+    const intersects = raycaster.intersectObjects(data.zombies, true);
+
+    if (intersects.length > 0) {
+      let hitObject = intersects[0].object;
+      let targetZombie: Zombie | null = null;
+      
+      // Traverse up the hierarchy to find the parent Zombie object
+      let current: THREE.Object3D | null = hitObject;
+      while (current) {
+        if ((current as any).isZombie) {
+          targetZombie = current as Zombie;
+          break;
+        }
+        current = current.parent;
+      }
+
+      if (targetZombie) {
+        applyDamage(targetZombie, bulletDamage);
+      }
+    }
+
+    // Step 2: Create the visual bullet effect regardless of hit
     const bulletMaterial = new THREE.MeshBasicMaterial({ color: bulletColor });
     const bulletGeometry = new THREE.SphereGeometry(0.1, 8, 8);
     const bullet = new THREE.Mesh(bulletGeometry, bulletMaterial) as Bullet;
@@ -489,33 +513,6 @@ export default function Game({
     data.scene.add(bullet);
     data.bullets.push(bullet);
 
-    const raycastDirection = new THREE.Vector3();
-    data.camera.getWorldDirection(raycastDirection);
-    
-    const raycaster = new THREE.Raycaster(
-        data.camera.position,
-        raycastDirection
-    );
-    
-    const intersects = raycaster.intersectObjects(data.zombies, true);
-
-    if (intersects.length > 0) {
-        let hitObject = intersects[0].object;
-        let targetZombie: Zombie | null = null;
-        
-        let current: THREE.Object3D | null = hitObject;
-        while (current) {
-            if ((current as any).isZombie) {
-                targetZombie = current as Zombie;
-                break;
-            }
-            current = current.parent;
-        }
-
-        if (targetZombie) {
-            applyDamage(targetZombie, bulletDamage);
-        }
-    }
   }, [applyDamage, playSound, currentWeapon, specialAmmo, setSpecialAmmo, setCurrentWeapon]);
 
   useEffect(() => {
@@ -564,7 +561,7 @@ export default function Game({
 
     data.camera.position.y = 1.6;
 
-    data.player.position.set(0, 1, 15);
+    data.player.position.set(10, 1, 10);
     data.player.castShadow = true;
     data.player.add(data.camera);
     data.scene.add(data.player);
@@ -834,7 +831,13 @@ export default function Game({
         handleShoot();
       }
       if (data.input.switchWeapon) {
-        setCurrentWeapon(w => w === 'standard' ? 'special' : 'standard');
+        setCurrentWeapon(w => {
+            const nextWeapon = w === 'standard' ? 'special' : 'standard';
+            if (nextWeapon === 'special' && specialAmmo <= 0) {
+                return 'standard'; // Can't switch to special with 0 ammo
+            }
+            return nextWeapon;
+        });
         data.input.switchWeapon = false;
       }
       if (data.input.jump && data.onGround) {

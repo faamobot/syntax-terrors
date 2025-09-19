@@ -169,6 +169,7 @@ export default function Game({
     onGround: true,
     
     lastShotTime: 0,
+    lastDamageTime: 0,
     baseBulletDamage: 20,
   });
 
@@ -866,8 +867,6 @@ export default function Game({
       data.player.position.y += verticalDelta;
       data.onGround = false;
       
-      let correctedY = false;
-
       for (const obstacle of data.obstacles) {
           const obstacleCollider = new THREE.Box3().setFromObject(obstacle);
           const currentCollider = new THREE.Box3().setFromObject(data.player);
@@ -880,7 +879,6 @@ export default function Game({
                  data.player.position.y = obstacleCollider.max.y + playerHeight / 2;
                  data.playerVelocity.y = 0;
                  data.onGround = true;
-                 correctedY = true;
                  break;
               }
             } else { // Player is moving upwards
@@ -888,7 +886,6 @@ export default function Game({
                 if(prevPlayerTop <= obstacleCollider.min.y + 0.1) {
                     data.player.position.y = obstacleCollider.min.y - playerHeight / 2;
                     data.playerVelocity.y = 0; // Hit ceiling
-                    correctedY = true;
                     break;
                 }
             }
@@ -1105,3 +1102,5 @@ export default function Game({
 
   return <div ref={mountRef} className="absolute inset-0 z-0" />;
 }
+
+    

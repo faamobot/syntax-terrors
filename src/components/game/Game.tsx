@@ -139,7 +139,9 @@ export default function Game({
       });
     } finally {
         setTimeout(() => {
-          data.waveInProgress = false;
+          if (gameData.current) {
+            gameData.current.waveInProgress = false;
+          }
         }, 2000);
     }
 
@@ -328,7 +330,7 @@ export default function Game({
 
       const delta = clock.getDelta();
       
-      const speed = 5.0;
+      const speed = 6.0;
       const moveDirection = new THREE.Vector3();
       if (data.input.forward) moveDirection.z -= 1;
       if (data.input.backward) moveDirection.z += 1;

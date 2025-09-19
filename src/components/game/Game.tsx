@@ -335,11 +335,14 @@ export default function Game({
       if (data.input.left) moveDirection.x -= 1;
       if (data.input.right) moveDirection.x += 1;
       
-      const playerSpeed = data.onGround ? speed : speed * 0.3; // Slower movement in air
+      const playerSpeed = data.onGround ? speed : speed * 0.3;
       if (moveDirection.lengthSq() > 0) {
         moveDirection.normalize().applyQuaternion(data.player.quaternion);
-        data.playerVelocity.x += moveDirection.x * playerSpeed * delta;
-        data.playerVelocity.z += moveDirection.z * playerSpeed * delta;
+        data.playerVelocity.x = moveDirection.x * playerSpeed;
+        data.playerVelocity.z = moveDirection.z * playerSpeed;
+      } else {
+        data.playerVelocity.x = 0;
+        data.playerVelocity.z = 0;
       }
 
       if (data.input.shoot) {
@@ -365,13 +368,12 @@ export default function Game({
       // Gravity
       data.playerVelocity.y -= 20.0 * delta; 
       
+      const prevPosition = data.player.position.clone();
+
       data.player.position.x += data.playerVelocity.x * delta;
       data.player.position.y += data.playerVelocity.y * delta;
       data.player.position.z += data.playerVelocity.z * delta;
 
-      // Friction
-      data.playerVelocity.x *= (1 - 10 * delta); 
-      data.playerVelocity.z *= (1 - 10 * delta);
       
       data.onGround = false;
       const playerHeight = 1.6;
@@ -384,7 +386,6 @@ export default function Game({
       }
 
       const playerCollider = new THREE.Box3().setFromObject(data.player);
-      const playerRadius = 0.5;
       
       // Obstacle collision
       data.obstacles.forEach(obstacle => {
@@ -393,35 +394,35 @@ export default function Game({
         
         if (intersects) {
           const penetration = new THREE.Vector3();
-          playerCollider.getCenter(penetration).sub(obstacleCollider.getCenter(new THREE.Vector3()));
+          const playerCenter = playerCollider.getCenter(new THREE.Vector3());
+          const obstacleCenter = obstacleCollider.getCenter(new THREE.Vector3());
+          penetration.subVectors(playerCenter, obstacleCenter);
 
           const playerSize = playerCollider.getSize(new THREE.Vector3());
           const obstacleSize = obstacleCollider.getSize(new THREE.Vector3());
 
           const overlapX = (playerSize.x + obstacleSize.x) / 2 - Math.abs(penetration.x);
-          const overlapY = (playerSize.y + obstacleSize.y) / 2 - Math.abs(penetration.y);
           const overlapZ = (playerSize.z + obstacleSize.z) / 2 - Math.abs(penetration.z);
+          const overlapY = (playerSize.y + obstacleSize.y) / 2 - Math.abs(penetration.y);
 
-          if (overlapY > 0 && data.playerVelocity.y < 0 && data.player.position.y > obstacle.position.y) {
-              // Check if player is on top
-              if (Math.abs(penetration.y) > overlapY - 0.1) {
-                  data.player.position.y = obstacle.position.y + obstacleSize.y / 2 + playerSize.y / 2 - 0.1;
-                  data.playerVelocity.y = 0;
-                  data.onGround = true;
-                  return; // Skip other collision checks if on top
-              }
+          if (overlapY > 0 && prevPosition.y >= obstacle.position.y + obstacleSize.y / 2) {
+             if (data.playerVelocity.y <= 0) {
+                 data.player.position.y = obstacle.position.y + obstacleSize.y / 2 + playerHeight / 2;
+                 data.playerVelocity.y = 0;
+                 data.onGround = true;
+                 return;
+             }
           }
-
+          
           if (overlapX < overlapZ) {
               data.player.position.x += penetration.x > 0 ? overlapX : -overlapX;
-              data.playerVelocity.x = 0;
           } else {
               data.player.position.z += penetration.z > 0 ? overlapZ : -overlapZ;
-              data.playerVelocity.z = 0;
           }
         }
       });
 
+      const playerRadius = 0.5;
       const halfSize = ARENA_SIZE / 2 - playerRadius;
       data.player.position.x = THREE.MathUtils.clamp(data.player.position.x, -halfSize, halfSize);
       data.player.position.z = THREE.MathUtils.clamp(data.player.position.z, -halfSize, halfSize);

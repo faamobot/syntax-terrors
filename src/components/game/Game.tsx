@@ -446,10 +446,10 @@ export default function Game({
   const handleShoot = useCallback(() => {
     const { current: data } = gameData;
     const time = performance.now();
-    
+
     const fireRate = currentWeapon === 'special' ? 400 : 200;
     if (time - data.lastShotTime < fireRate) return;
-    
+
     data.lastShotTime = time;
 
     let bulletColor: number;

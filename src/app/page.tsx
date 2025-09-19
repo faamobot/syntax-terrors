@@ -37,7 +37,7 @@ export default function Home() {
 
   const startGame = () => {
     setScore(0);
-    setWave(0); // This will be incremented to 1 by the game component
+    setWave(0); // Game component will start wave 1
     setHealth(100);
     setZombiesRemaining(0);
     setGameState('playing');
@@ -96,7 +96,7 @@ export default function Home() {
       {gameState === 'gameover' && <GameOverMenu score={score} wave={wave} onRestart={startGame} />}
       {gameState === 'paused' && <PauseMenu onResume={resumeGame} onRestart={startGame} />}
       
-      {gameState === 'playing' && (
+      {(gameState === 'playing' ) && (
         <Game
           gameState={gameState}
           setScore={setScore}

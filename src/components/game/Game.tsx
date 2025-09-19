@@ -56,6 +56,8 @@ export default function Game({
 }: GameProps) {
   const mountRef = useRef<HTMLDivElement>(null);
   const gameLoopRef = useRef<number>();
+  const waveRef = useRef(wave);
+  waveRef.current = wave;
   
   const gameData = useRef({
     scene: new THREE.Scene(),
@@ -94,6 +96,7 @@ export default function Game({
     const { current: data } = gameData;
     
     try {
+      setWave(waveNumber);
       const waveData = await generateZombieWave({
         waveNumber: waveNumber,
         difficulty: 'normal',
@@ -130,10 +133,12 @@ export default function Game({
         const zombieMaterial = new THREE.MeshStandardMaterial({ color: zombieColor });
         const zombie = new THREE.Mesh(typeInfo.geometry, zombieMaterial) as Zombie;
         
+        const positionX = (Math.random() - 0.5) * (ARENA_SIZE - 2);
+        const positionZ = (Math.random() - 0.5) * (ARENA_SIZE - 2);
         zombie.position.set(
-            (Math.random() - 0.5) * (ARENA_SIZE - 2),
-            typeInfo.geometry.parameters.height / 2,
-            (Math.random() - 0.5) * (ARENA_SIZE - 2)
+          positionX,
+          typeInfo.geometry.parameters.height / 2,
+          positionZ
         );
         
         zombie.castShadow = true;
@@ -154,7 +159,7 @@ export default function Game({
         variant: "destructive",
       });
     }
-  }, [setWaveMessage, toast, setZombiesRemaining]);
+  }, [setWaveMessage, toast, setZombiesRemaining, setWave]);
 
   const despawnZombie = useCallback((zombie: Zombie) => {
     const { current: data } = gameData;
@@ -168,8 +173,14 @@ export default function Game({
     data.zombies = data.zombies.filter(z => z !== zombie);
     setScore(s => s + 100);
 
-    setZombiesRemaining(prev => prev - 1);
-  }, [setScore, setZombiesRemaining]);
+    setZombiesRemaining(prev => {
+        const newCount = prev - 1;
+        if (newCount === 0) {
+            startNewWave(waveRef.current + 1);
+        }
+        return newCount;
+    });
+  }, [setScore, setZombiesRemaining, startNewWave]);
 
   const applyDamage = useCallback((zombie: Zombie, damage: number) => {
     zombie.health -= damage;
@@ -241,6 +252,12 @@ export default function Game({
     data.player.castShadow = true;
     data.player.add(data.camera);
     data.scene.add(data.player);
+    
+    const gunGeo = new THREE.BoxGeometry(0.1, 0.2, 0.5); 
+    const gunMat = new THREE.MeshStandardMaterial({ color: 0x333333 });
+    const gun = new THREE.Mesh(gunGeo, gunMat);
+    gun.position.set(0.3, -0.3, -0.8);
+    data.camera.add(gun);
 
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
     data.scene.add(ambientLight);
@@ -381,7 +398,7 @@ export default function Game({
     document.addEventListener('mousemove', handleMouseMove);
     window.addEventListener('resize', handleResize);
     
-    setWave(1);
+    startNewWave(1);
 
     const clock = new THREE.Clock();
     const animate = () => {
@@ -502,10 +519,13 @@ export default function Game({
         }
         
         const zombieCollider = new THREE.Box3().setFromObject(zombie);
+        let corrected = false;
         data.obstacles.forEach(obstacle => {
+            if (corrected) return;
             const obstacleCollider = new THREE.Box3().setFromObject(obstacle);
             if (zombieCollider.intersectsBox(obstacleCollider)) {
                 zombie.position.copy(zombiePrevPosition);
+                corrected = true;
             }
         });
       });
@@ -562,18 +582,6 @@ export default function Game({
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  useEffect(() => {
-    if (zombiesRemaining === 0 && wave > 0) {
-      setWave(w => w + 1);
-    }
-  }, [zombiesRemaining, wave, setWave]);
-
-  useEffect(() => {
-    if (wave > 0) {
-      startNewWave(wave);
-    }
-  }, [wave, startNewWave]);
 
   useEffect(() => {
     const onPointerLockChange = () => {

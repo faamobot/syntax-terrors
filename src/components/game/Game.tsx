@@ -388,13 +388,16 @@ export default function Game({
   const despawnZombie = useCallback((zombie: Zombie) => {
     const { current: data } = gameData;
     
-    data.scene.remove(zombie);
-    zombie.traverse(child => {
-        if (child instanceof THREE.Mesh) {
-            child.geometry.dispose();
-            (child.material as THREE.Material).dispose();
-        }
-    });
+    // Defer removal and disposal to avoid race conditions
+    setTimeout(() => {
+        data.scene.remove(zombie);
+        zombie.traverse(child => {
+            if (child instanceof THREE.Mesh) {
+                child.geometry.dispose();
+                (child.material as THREE.Material).dispose();
+            }
+        });
+    }, 0);
 
     const newZombies = data.zombies.filter(z => z !== zombie);
     data.zombies = newZombies;
@@ -414,7 +417,8 @@ export default function Game({
     }
 
     setScore(s => s + 100 + bonus);
-
+    
+    // This state update must be synchronous to correctly check the wave end condition
     setZombiesRemaining(newZombies.length);
 
     if (newZombies.length <= 0) {
@@ -439,7 +443,7 @@ export default function Game({
 
     setTimeout(() => {
         zombie.traverse(child => {
-            if (child instanceof THREE.Mesh && child.material instanceof THREE.MeshStandardMaterial) {
+            if (child instanceof THREE.Mesh && child.material instanceof THREE.MeshStandardMaterial && (zombie as any).originalColor) {
                 child.material.color.copy((zombie as any).originalColor);
             }
         });
@@ -455,25 +459,25 @@ export default function Game({
     const time = performance.now();
     if (time - data.lastShotTime < 200) return;
 
-    let bulletDamage: number;
-    let bulletColor: number;
+    data.lastShotTime = time;
 
+    let bulletColor: number;
+    
+    // Check for special ammo first
     if (currentWeapon === 'special') {
       if (specialAmmo <= 0) {
-        setCurrentWeapon('standard'); // Auto-switch back
-        return; // Don't shoot
+        setCurrentWeapon('standard'); // Auto-switch back, but don't shoot this frame
+        return;
       }
-      bulletDamage = 25;
-      bulletColor = 0x00ff00; // Green for special
+      bulletColor = 0x00ff00; // Green
       setSpecialAmmo(sa => sa - 1);
     } else {
-      bulletDamage = data.baseBulletDamage;
-      bulletColor = 0xffff00;
+      bulletColor = 0xffff00; // Yellow
     }
 
-    data.lastShotTime = time;
     playSound('shoot');
 
+    // Visual bullet
     const bulletMaterial = new THREE.MeshBasicMaterial({ color: bulletColor });
     const bulletGeometry = new THREE.SphereGeometry(0.1, 8, 8);
     const bullet = new THREE.Mesh(bulletGeometry, bulletMaterial) as Bullet;
@@ -490,32 +494,35 @@ export default function Game({
     data.scene.add(bullet);
     data.bullets.push(bullet);
 
+    // Raycast for hit detection
     const raycaster = new THREE.Raycaster(
-        data.camera.position, // Ray starts from camera
-        vector // Direction camera is facing
+        data.camera.position,
+        vector // Use the same direction vector
     );
     
     const intersects = raycaster.intersectObjects(data.zombies, true);
 
     if (intersects.length > 0) {
-      let hitObject = intersects[0].object;
-      let targetZombie: Zombie | null = null;
-      
-      // Traverse up the hierarchy to find the main zombie group
-      let current: THREE.Object3D | null = hitObject;
-      while (current) {
-        if ((current as any).isZombie) {
-            targetZombie = current as Zombie;
-            break;
+        let hitObject = intersects[0].object;
+        let targetZombie: Zombie | null = null;
+        
+        // Find the top-level zombie group
+        let current: THREE.Object3D | null = hitObject;
+        while (current) {
+            if ((current as any).isZombie) {
+                targetZombie = current as Zombie;
+                break;
+            }
+            current = current.parent;
         }
-        current = current.parent;
-      }
 
-      if (targetZombie) { 
-          applyDamage(targetZombie, bulletDamage);
-      }
+        if (targetZombie) {
+            // Determine damage based on weapon type AFTER confirming a hit
+            const damage = currentWeapon === 'special' ? 25 : data.baseBulletDamage;
+            applyDamage(targetZombie, damage);
+        }
     }
-  }, [applyDamage, playSound, currentWeapon, specialAmmo, setSpecialAmmo, setCurrentWeapon]);
+  }, [applyDamage, playSound, currentWeapon, specialAmmo, setSpecialAmmo, setCurrentWeapon, gameData]);
 
   useEffect(() => {
     if (gameState === 'playing' && !audioContextRef.current) {

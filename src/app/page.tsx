@@ -96,7 +96,7 @@ export default function Home() {
       {gameState === 'gameover' && <GameOverMenu score={score} wave={wave} onRestart={startGame} />}
       {gameState === 'paused' && <PauseMenu onResume={resumeGame} onRestart={startGame} />}
       
-      {(gameState === 'playing' || gameState === 'paused') && (
+      {gameState === 'playing' && (
         <Game
           gameState={gameState}
           setScore={setScore}

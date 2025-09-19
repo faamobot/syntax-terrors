@@ -83,12 +83,11 @@ export default function Game({
     waveInProgress: false,
   });
 
-  const startNewWave = useCallback(async () => {
+  const startNewWave = useCallback(async (currentWave: number) => {
     const { current: data } = gameData;
     if (data.waveInProgress) return;
     data.waveInProgress = true;
     
-    const currentWave = wave + 1;
     setWave(currentWave);
     
     try {
@@ -133,7 +132,7 @@ export default function Game({
       });
       
       if (waveData.zombies.length === 0 && currentWave > 0) {
-         setTimeout(() => startNewWave(), 1000);
+         setTimeout(() => startNewWave(currentWave + 1), 1000);
       }
       
     } catch (e) {
@@ -151,7 +150,7 @@ export default function Game({
         }, 2000);
     }
 
-  }, [wave, setWave, setWaveMessage, toast, setZombiesRemaining]);
+  }, [setWave, setWaveMessage, toast, setZombiesRemaining]);
 
   const despawnZombie = useCallback((zombie: Zombie) => {
     const { current: data } = gameData;
@@ -162,11 +161,11 @@ export default function Game({
     setZombiesRemaining(r => {
       const newRemaining = newZombies.length;
       if (newRemaining <= 0 && !data.waveInProgress) {
-        setTimeout(() => startNewWave(), 1000);
+        setTimeout(() => startNewWave(wave + 1), 1000);
       }
       return newRemaining;
     });
-  }, [setScore, startNewWave, setZombiesRemaining]);
+  }, [setScore, startNewWave, setZombiesRemaining, wave]);
 
   const applyDamage = useCallback((zombie: Zombie, damage: number) => {
     zombie.health -= damage;
@@ -275,32 +274,48 @@ export default function Game({
 
     const handleKeyDown = (e: KeyboardEvent) => {
       switch (e.code) {
-        case 'KeyW': data.input.forward = true; break;
-        case 'KeyS': data.input.backward = true; break;
-        case 'KeyA': data.input.left = true; break;
-        case 'KeyD': data.input.right = true; break;
+        case 'KeyW':
+        case 'ArrowUp':
+          data.input.forward = true;
+          break;
+        case 'KeyS':
+        case 'ArrowDown':
+          data.input.backward = true;
+          break;
+        case 'KeyA':
+        case 'ArrowLeft':
+          data.input.left = true;
+          break;
+        case 'KeyD':
+        case 'ArrowRight':
+          data.input.right = true;
+          break;
         case 'KeyF': data.input.shoot = true; break;
         case 'Space': data.input.jump = true; break;
         case 'ShiftLeft': data.input.sprint = true; break;
-        case 'ArrowUp': data.input.lookUp = true; break;
-        case 'ArrowDown': data.input.lookDown = true; break;
-        case 'ArrowLeft': data.input.lookLeft = true; break;
-        case 'ArrowRight': data.input.lookRight = true; break;
       }
     };
     const handleKeyUp = (e: KeyboardEvent) => {
        switch (e.code) {
-        case 'KeyW': data.input.forward = false; break;
-        case 'KeyS': data.input.backward = false; break;
-        case 'KeyA': data.input.left = false; break;
-        case 'KeyD': data.input.right = false; break;
+        case 'KeyW':
+        case 'ArrowUp':
+          data.input.forward = false;
+          break;
+        case 'KeyS':
+        case 'ArrowDown':
+          data.input.backward = false;
+          break;
+        case 'KeyA':
+        case 'ArrowLeft':
+          data.input.left = false;
+          break;
+        case 'KeyD':
+        case 'ArrowRight':
+          data.input.right = false;
+          break;
         case 'KeyF': data.input.shoot = false; break;
         case 'Space': data.input.jump = false; break;
         case 'ShiftLeft': data.input.sprint = false; break;
-        case 'ArrowUp': data.input.lookUp = false; break;
-        case 'ArrowDown': data.input.lookDown = false; break;
-        case 'ArrowLeft': data.input.lookLeft = false; break;
-        case 'ArrowRight': data.input.lookRight = false; break;
       }
     };
     
@@ -322,7 +337,7 @@ export default function Game({
     document.addEventListener('mousemove', handleMouseMove);
     window.addEventListener('resize', handleResize);
     
-    startNewWave();
+    startNewWave(1);
 
 
     const clock = new THREE.Clock();
@@ -331,13 +346,6 @@ export default function Game({
       if (gameState !== 'playing' || !data.renderer) return;
 
       const delta = clock.getDelta();
-      
-      const lookSpeed = 2 * delta;
-      if (data.input.lookUp) data.camera.rotation.x += lookSpeed;
-      if (data.input.lookDown) data.camera.rotation.x -= lookSpeed;
-      if (data.input.lookLeft) data.player.rotation.y += lookSpeed;
-      if (data.input.lookRight) data.player.rotation.y -= lookSpeed;
-      data.camera.rotation.x = THREE.MathUtils.clamp(data.camera.rotation.x, -Math.PI / 2, Math.PI / 2);
       
       const baseSpeed = 8.0;
       const sprintSpeed = 12.0;

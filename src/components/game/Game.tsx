@@ -384,11 +384,7 @@ export default function Game({
       if (data.zombies.length === 0 && data.waveInProgress) {
         gameData.current.waveInProgress = false;
       }
-      if (data.zombies.length === 0 && !data.waveInProgress && wave > 0) {
-        startNewWave();
-      }
-      // Special handling for wave 0 to start wave 1
-      if(wave === 0 && data.zombies.length === 0 && !data.waveInProgress) {
+      if (data.zombies.length === 0 && !data.waveInProgress) {
         startNewWave();
       }
 

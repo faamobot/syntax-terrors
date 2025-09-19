@@ -32,6 +32,8 @@ type Zombie = THREE.Mesh & {
   health: number;
 };
 
+const ARENA_SIZE = 100;
+
 export default function Game({
   gameState,
   setScore,
@@ -101,14 +103,13 @@ export default function Game({
       setTimeout(() => setWaveMessage(''), 4000);
     }
 
-    const arenaSize = 48;
     for (let i = 0; i < waveData.zombieCount; i++) {
         const zombieMaterial = new THREE.MeshStandardMaterial({ color: 0x803333 });
         const zombie = new THREE.Mesh(new THREE.BoxGeometry(1, 2, 1), zombieMaterial) as Zombie;
         zombie.position.set(
-            (Math.random() - 0.5) * arenaSize,
+            (Math.random() - 0.5) * (ARENA_SIZE - 2),
             1,
-            (Math.random() - 0.5) * arenaSize
+            (Math.random() - 0.5) * (ARENA_SIZE - 2)
         );
         zombie.health = 100 * waveData.zombieHealthMultiplier;
         zombie.speed = 0.03 * waveData.zombieSpeedMultiplier;
@@ -149,7 +150,7 @@ export default function Game({
     data.scene.add(directionalLight);
 
     const floor = new THREE.Mesh(
-      new THREE.PlaneGeometry(50, 50),
+      new THREE.PlaneGeometry(ARENA_SIZE, ARENA_SIZE),
       new THREE.MeshStandardMaterial({ color: 0x333333 })
     );
     floor.rotation.x = -Math.PI / 2;
@@ -158,19 +159,45 @@ export default function Game({
     
     // Walls
     const wallMaterial = new THREE.MeshStandardMaterial({ color: 0x444444 });
-    const wall1 = new THREE.Mesh(new THREE.BoxGeometry(50, 5, 1), wallMaterial);
-    wall1.position.z = -25; wall1.position.y = 2.5; wall1.receiveShadow = true;
+    const wallY = 2.5;
+    const wallDepth = 1;
+    const halfArena = ARENA_SIZE / 2;
+    
+    const wall1 = new THREE.Mesh(new THREE.BoxGeometry(ARENA_SIZE, 5, wallDepth), wallMaterial);
+    wall1.position.z = -halfArena; wall1.position.y = wallY; wall1.receiveShadow = true;
     data.scene.add(wall1);
-    const wall2 = new THREE.Mesh(new THREE.BoxGeometry(50, 5, 1), wallMaterial);
-    wall2.position.z = 25; wall2.position.y = 2.5; wall2.receiveShadow = true;
+    const wall2 = new THREE.Mesh(new THREE.BoxGeometry(ARENA_SIZE, 5, wallDepth), wallMaterial);
+    wall2.position.z = halfArena; wall2.position.y = wallY; wall2.receiveShadow = true;
     data.scene.add(wall2);
-    const wall3 = new THREE.Mesh(new THREE.BoxGeometry(1, 5, 50), wallMaterial);
-    wall3.position.x = -25; wall3.position.y = 2.5; wall3.receiveShadow = true;
+    const wall3 = new THREE.Mesh(new THREE.BoxGeometry(wallDepth, 5, ARENA_SIZE), wallMaterial);
+    wall3.position.x = -halfArena; wall3.position.y = wallY; wall3.receiveShadow = true;
     data.scene.add(wall3);
-    const wall4 = new THREE.Mesh(new THREE.BoxGeometry(1, 5, 50), wallMaterial);
-    wall4.position.x = 25; wall4.position.y = 2.5; wall4.receiveShadow = true;
+    const wall4 = new THREE.Mesh(new THREE.BoxGeometry(wallDepth, 5, ARENA_SIZE), wallMaterial);
+    wall4.position.x = halfArena; wall4.position.y = wallY; wall4.receiveShadow = true;
     data.scene.add(wall4);
 
+    // Obstacles
+    const obstacleGeometries = [
+      new THREE.SphereGeometry(2, 16, 16),
+      new THREE.ConeGeometry(2, 4, 16),
+      new THREE.CylinderGeometry(1.5, 1.5, 3, 16),
+      new THREE.BoxGeometry(3, 3, 3),
+    ];
+    const obstacleColors = [0xff6347, 0x4682b4, 0x32cd32, 0xffd700, 0x6a5acd];
+    
+    for (let i = 0; i < 15; i++) {
+        const geometry = obstacleGeometries[Math.floor(Math.random() * obstacleGeometries.length)];
+        const material = new THREE.MeshStandardMaterial({ color: obstacleColors[Math.floor(Math.random() * obstacleColors.length)] });
+        const obstacle = new THREE.Mesh(geometry, material);
+        obstacle.position.set(
+            (Math.random() - 0.5) * (ARENA_SIZE - 10),
+            geometry.parameters.height ? geometry.parameters.height / 2 : 1.5,
+            (Math.random() - 0.5) * (ARENA_SIZE - 10)
+        );
+        obstacle.castShadow = true;
+        obstacle.receiveShadow = true;
+        data.scene.add(obstacle);
+    }
 
     const handleKeyDown = (e: KeyboardEvent) => {
       switch (e.code) {
@@ -285,8 +312,9 @@ export default function Game({
       data.playerVelocity.multiplyScalar(1 - 10 * delta); // friction
 
       // Clamp player position
-      data.player.position.x = THREE.MathUtils.clamp(data.player.position.x, -24, 24);
-      data.player.position.z = THREE.MathUtils.clamp(data.player.position.z, -24, 24);
+      const halfSize = ARENA_SIZE / 2 - 1;
+      data.player.position.x = THREE.MathUtils.clamp(data.player.position.x, -halfSize, halfSize);
+      data.player.position.z = THREE.MathUtils.clamp(data.player.position.z, -halfSize, halfSize);
 
       // Zombie AI
       data.zombies.forEach(zombie => {
@@ -355,19 +383,18 @@ export default function Game({
     };
 
     const onPointerLockError = () => {
-      toast({
-        title: 'Pointer Lock Failed',
-        description: 'Could not lock the mouse. Your browser might not support this feature or it is blocked.',
-        variant: 'destructive',
-      });
+      // This can be noisy, so we'll leave it out for now.
+      // A toast could be shown here if needed.
     };
 
     document.addEventListener('pointerlockchange', onPointerLockChange, false);
     document.addEventListener('pointerlockerror', onPointerLockError, false);
     
-    if (gameState === 'playing' && document.pointerLockElement !== containerRef.current) {
-        containerRef.current?.requestPointerLock();
-    } else if (gameState !== 'playing' && document.pointerLockElement === containerRef.current) {
+    // We no longer automatically request pointer lock here.
+    // It is now handled by a direct click in page.tsx.
+    
+    // We do handle exiting pointer lock when the game is not playing.
+    if (gameState !== 'playing' && document.pointerLockElement === containerRef.current) {
         document.exitPointerLock();
     }
     
@@ -375,7 +402,7 @@ export default function Game({
       document.removeEventListener('pointerlockchange', onPointerLockChange, false);
       document.removeEventListener('pointerlockerror', onPointerLockError, false);
     }
-  }, [gameState, onPause, toast, containerRef]);
+  }, [gameState, onPause, containerRef]);
   
   useEffect(() => {
     if(health <= 0) {

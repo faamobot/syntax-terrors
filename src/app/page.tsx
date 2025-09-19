@@ -77,6 +77,8 @@ export default function Home() {
   }, [score, highScore]);
 
   const handleClick = () => {
+    // This is the only place we should request pointer lock.
+    // It must be in a direct response to a user click.
     if (gameState === 'playing' && document.pointerLockElement !== mainRef.current) {
         mainRef.current?.requestPointerLock();
     }

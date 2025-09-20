@@ -288,7 +288,7 @@ export default function Game({
     crate.castShadow = true;
 
     crate.isHealthCrate = true;
-    crate.healthValue = 5 + waveNumber; // Scales with wave number
+    crate.healthValue = 20 + waveNumber * 5; // Scales with wave number
     crate.spawnTime = performance.now();
     crate.initialPosition = crate.position.clone();
     
@@ -383,7 +383,7 @@ export default function Game({
     } finally {
         data.isWaveSpawning = false;
     }
-  }, [setWaveMessage, toast, setZombiesRemaining, dropHealthCrate, gameData]);
+  }, [setWaveMessage, toast, setZombiesRemaining, dropHealthCrate]);
 
   const despawnZombie = useCallback((zombie: Zombie) => {
     const { current: data } = gameData;
@@ -430,7 +430,7 @@ export default function Game({
 
     setScore(s => s + 100 + bonus);
     
-  }, [setScore, setZombiesRemaining, playSound, setPlayerMessage, setSpecialAmmo, gameData]);
+  }, [setScore, setZombiesRemaining, playSound, setPlayerMessage, setSpecialAmmo]);
   
   const applyDamage = useCallback((zombie: Zombie, damage: number) => {
     if (zombie.health <= 0) return;
@@ -530,7 +530,7 @@ export default function Game({
   
     data.scene.add(bullet);
     data.bullets.push(bullet);
-  }, [applyDamage, playSound, currentWeapon, specialAmmo, setSpecialAmmo, setCurrentWeapon, gameData]);
+  }, [applyDamage, playSound, currentWeapon, specialAmmo, setSpecialAmmo, setCurrentWeapon]);
 
   useEffect(() => {
     if (gameState === 'playing' && !audioContextRef.current) {
@@ -542,17 +542,15 @@ export default function Game({
   }, [gameState]);
   
   useEffect(() => {
-    // This effect is responsible for advancing waves.
-    const isWaveComplete = zombiesRemaining === 0 && !gameData.current.isWaveSpawning && gameData.current.zombies.length === 0;
-
-    if (gameState === 'playing' && wave > 0 && isWaveComplete) {
+    // This effect advances the wave number.
+    if (gameState === 'playing' && wave > 0 && zombiesRemaining === 0 && !gameData.current.isWaveSpawning && gameData.current.zombies.length === 0) {
       const timer = setTimeout(() => {
         setWave(w => w + 1);
       }, 3000); // 3-second delay between waves
       
       return () => clearTimeout(timer);
     }
-  }, [gameState, wave, zombiesRemaining, setWave, gameData]);
+  }, [gameState, wave, zombiesRemaining, setWave]);
 
   useEffect(() => {
     // This effect is responsible for triggering the spawning of a new wave.
@@ -562,7 +560,7 @@ export default function Game({
           startNewWave(wave);
       }
     }
-  }, [wave, gameState, startNewWave, zombiesRemaining, gameData]);
+  }, [wave, gameState, startNewWave, zombiesRemaining]);
 
   useEffect(() => {
     if (!mountRef.current) return;
@@ -1121,9 +1119,11 @@ export default function Game({
     if (gameState === 'playing' && wave === 1 && gameData.current.zombies.length === 0 && !gameData.current.isWaveSpawning) {
       startNewWave(1);
     }
-  }, [gameState, wave, startNewWave, gameData]);
+  }, [gameState, wave, startNewWave]);
 
   return <div ref={mountRef} className="absolute inset-0 z-0" />;
 }
+
+    
 
     

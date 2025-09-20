@@ -149,6 +149,7 @@ export default function Game({
     obstacles: [] as THREE.Mesh[],
     bullets: [] as Bullet[],
     healthCrate: null as HealthCrate | null,
+    isWaveSpawning: false,
 
     input: {
       forward: false,
@@ -297,6 +298,8 @@ export default function Game({
 
   const startNewWave = useCallback(async (waveNumber: number) => {
     const { current: data } = gameData;
+    if (data.isWaveSpawning) return;
+    data.isWaveSpawning = true;
     
     try {
       const waveData = await generateZombieWave({
@@ -377,6 +380,8 @@ export default function Game({
         description: "Could not generate next zombie wave. Please try again.",
         variant: "destructive",
       });
+    } finally {
+        data.isWaveSpawning = false;
     }
   }, [setWaveMessage, toast, setZombiesRemaining, dropHealthCrate]);
 
@@ -484,10 +489,8 @@ export default function Game({
   
     const intersects = raycaster.intersectObjects(data.scene.children, true);
   
-    let hitZombie = false;
     if (intersects.length > 0) {
       for (const intersect of intersects) {
-        if (hitZombie) break; // only process the first hit
         let hitObject = intersect.object;
         let targetZombie: Zombie | null = null;
     
@@ -503,7 +506,7 @@ export default function Game({
     
         if (targetZombie) {
           applyDamage(targetZombie, bulletDamage);
-          hitZombie = true; 
+          break; // only process the first hit zombie
         }
       }
     }
@@ -536,21 +539,27 @@ export default function Game({
 
 
   useEffect(() => {
-    if (wave === 1 && gameState === 'playing' && zombiesRemaining === 0) {
+    // This effect is specifically for starting the very first wave.
+    if (wave === 1 && gameState === 'playing' && zombiesRemaining === 0 && !gameData.current.isWaveSpawning) {
       startNewWave(1);
     }
   }, [wave, gameState, zombiesRemaining, startNewWave]);
 
   useEffect(() => {
-    if (gameState === 'playing' && zombiesRemaining === 0 && wave > 0) {
-      const timer = setTimeout(() => {
-        setWave(w => {
-          const nextWave = w + 1;
-          startNewWave(nextWave);
-          return nextWave;
-        });
-      }, 3000);
-      return () => clearTimeout(timer);
+    // This effect is for advancing to the next wave.
+    if (gameState === 'playing' && zombiesRemaining === 0 && wave > 0 && !gameData.current.isWaveSpawning) {
+      // Check if there are any zombies currently in the scene.
+      // This prevents advancing a wave right after the last one was spawned.
+      if (gameData.current.zombies.length === 0) {
+        const timer = setTimeout(() => {
+            setWave(w => {
+              const nextWave = w + 1;
+              startNewWave(nextWave);
+              return nextWave;
+            });
+        }, 3000);
+        return () => clearTimeout(timer);
+      }
     }
   }, [zombiesRemaining, gameState, wave, setWave, startNewWave]);
 

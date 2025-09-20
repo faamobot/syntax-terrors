@@ -179,41 +179,66 @@ export default function Game({
     const now = ctx.currentTime;
     
     if (type === 'shoot') {
-        const noiseBuffer = ctx.createBuffer(1, ctx.sampleRate * 0.2, ctx.sampleRate);
+        const duration = 0.3;
+        
+        // Main gunshot sound (crack)
+        const noiseBuffer = ctx.createBuffer(1, ctx.sampleRate * duration, ctx.sampleRate);
         const output = noiseBuffer.getChannelData(0);
         for (let i = 0; i < noiseBuffer.length; i++) {
-            output[i] = (Math.random() * 2 - 1) * 0.4;
+            let t = i / (ctx.sampleRate * duration);
+            output[i] = (Math.random() * 2 - 1) * Math.pow(1 - t, 2.5);
         }
 
         const noise = ctx.createBufferSource();
         noise.buffer = noiseBuffer;
-
+        
         const bandpass = ctx.createBiquadFilter();
         bandpass.type = 'bandpass';
-        bandpass.frequency.value = 1500;
-        bandpass.Q.value = 0.5;
+        bandpass.frequency.setValueAtTime(1000, now);
+        bandpass.frequency.linearRampToValueAtTime(800, now + duration * 0.5);
+        bandpass.Q.value = 1;
 
         const gainNode = ctx.createGain();
-        gainNode.gain.setValueAtTime(0.5, now);
-        gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+        gainNode.gain.setValueAtTime(1, now);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, now + duration);
 
         noise.connect(bandpass);
         bandpass.connect(gainNode);
         gainNode.connect(ctx.destination);
-        noise.start(now);
-        noise.stop(now + 0.1);
 
+        // Low-frequency thump
+        const thump = ctx.createOscillator();
+        thump.type = 'sine';
+        thump.frequency.setValueAtTime(150, now);
+        thump.frequency.exponentialRampToValueAtTime(50, now + duration * 0.7);
+
+        const thumpGain = ctx.createGain();
+        thumpGain.gain.setValueAtTime(0.8, now);
+        thumpGain.gain.exponentialRampToValueAtTime(0.01, now + duration * 0.7);
+
+        thump.connect(thumpGain);
+        thumpGain.connect(ctx.destination);
+        
+        // High-frequency metallic click
         const click = ctx.createOscillator();
         click.type = 'square';
-        click.frequency.setValueAtTime(1000, now);
-        const clickGain = ctx.createGain();
-        clickGain.gain.setValueAtTime(0.3, now);
-        clickGain.gain.exponentialRampToValueAtTime(0.01, now + 0.03);
+        click.frequency.setValueAtTime(4000, now);
+        click.frequency.exponentialRampToValueAtTime(2000, now + duration * 0.1);
         
+        const clickGain = ctx.createGain();
+        clickGain.gain.setValueAtTime(0.2, now);
+        clickGain.gain.exponentialRampToValueAtTime(0.001, now + duration * 0.1);
+
         click.connect(clickGain);
         clickGain.connect(ctx.destination);
+
+        noise.start(now);
+        thump.start(now);
         click.start(now);
-        click.stop(now + 0.03);
+        
+        noise.stop(now + duration);
+        thump.stop(now + duration);
+        click.stop(now + duration);
 
     } else if (type === 'playerDamage') {
         const oscillator = ctx.createOscillator();
@@ -412,10 +437,8 @@ export default function Game({
   const despawnZombie = useCallback((zombie: Zombie) => {
     const { current: data } = gameData;
     
-    // This zombie is already being processed for despawn
     if (zombie.health > 0) return;
 
-    // To prevent this function from being called multiple times for the same zombie
     zombie.health = -1; 
     
     const newZombies = data.zombies.filter(z => z.uuid !== zombie.uuid);
@@ -434,13 +457,13 @@ export default function Game({
                 }
             }
         });
-    }, 500); // Give fade-out or death animation time
+    }, 500);
 
 
     const isClicker = zombie.type === 'clicker';
     const bonus = isClicker || Math.random() < 0.1 ? 500 : 0; 
     
-    if (bonus > 0 && !isClicker) { // Clickers have their own message
+    if (bonus > 0 && !isClicker) {
       playSound('powerup');
       setPlayerMessage('+500 BONUS!');
       setTimeout(() => setPlayerMessage(''), 1500);
@@ -473,7 +496,7 @@ export default function Game({
       despawnZombie(zombie);
     } else {
       setTimeout(() => {
-        if(zombie.health > 0) { // Don't revert color if it's dead
+        if(zombie.health > 0) {
             zombie.traverse(child => {
                 if (child instanceof THREE.Mesh && child.material instanceof THREE.MeshStandardMaterial && (zombie as any).originalColor) {
                     child.material.color.copy((zombie as any).originalColor);
@@ -510,7 +533,6 @@ export default function Game({
   
     playSound('shoot');
   
-    // 1. Raycast for hits
     const raycaster = new THREE.Raycaster();
     const rayOrigin = data.camera.getWorldPosition(new THREE.Vector3());
     const rayDirection = data.camera.getWorldDirection(new THREE.Vector3());
@@ -523,7 +545,6 @@ export default function Game({
         let hitObject = intersect.object;
         let targetZombie: Zombie | null = null;
     
-        // Traverse up the hierarchy to find the parent Zombie group
         let current: THREE.Object3D | null = hitObject;
         while (current) {
           if ((current as any).isZombie) {
@@ -535,12 +556,11 @@ export default function Game({
     
         if (targetZombie) {
           applyDamage(targetZombie, bulletDamage);
-          break; // Stop after hitting the first zombie
+          break;
         }
       }
     }
   
-    // 2. Create visual bullet effect
     const bulletMaterial = new THREE.MeshBasicMaterial({ color: bulletColor });
     const bulletGeometry = new THREE.SphereGeometry(0.1, 8, 8);
     const bullet = new THREE.Mesh(bulletGeometry, bulletMaterial) as Bullet;
@@ -566,18 +586,16 @@ export default function Game({
   }, [gameState]);
   
   useEffect(() => {
-    // This effect advances the wave number.
-    if (gameState === 'playing' && wave > 0 && zombiesRemaining === 0 && !gameData.current.isWaveSpawning) {
+    if (gameState === 'playing' && zombiesRemaining === 0 && wave > 0 && !gameData.current.isWaveSpawning) {
       const timer = setTimeout(() => {
         setWave(w => w + 1);
-      }, 3000); // 3-second delay between waves
+      }, 3000); 
       
       return () => clearTimeout(timer);
     }
-  }, [gameState, wave, zombiesRemaining, setWave, gameData.current.isWaveSpawning]);
+  }, [gameState, wave, zombiesRemaining, setWave]);
 
   useEffect(() => {
-    // This effect is responsible for triggering the spawning of a new wave.
     if (gameState === 'playing' && wave > 0) {
       const zombiesInScene = gameData.current.zombies.length === 0;
       if (zombiesInScene && !gameData.current.isWaveSpawning) {
@@ -879,7 +897,7 @@ export default function Game({
         setCurrentWeapon(w => {
             const nextWeapon = w === 'standard' ? 'special' : 'standard';
             if (nextWeapon === 'special' && specialAmmo <= 0) {
-                return 'standard'; // Can't switch to special with 0 ammo
+                return 'standard';
             }
             return nextWeapon;
         });
@@ -1137,13 +1155,6 @@ export default function Game({
     document.addEventListener('keydown', handleEscape);
     return () => document.removeEventListener('keydown', handleEscape);
   }, [gameState, onPause]);
-
-  useEffect(() => {
-    // This effect starts the very first wave.
-    if (gameState === 'playing' && wave === 1 && gameData.current.zombies.length === 0 && !gameData.current.isWaveSpawning) {
-      startNewWave(1);
-    }
-  }, [gameState, wave, startNewWave]);
 
   return <div ref={mountRef} className="absolute inset-0 z-0" />;
 }

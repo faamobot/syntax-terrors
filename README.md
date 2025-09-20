@@ -23,9 +23,8 @@ THe main objective is to Kill all the zombies in a wave before they try to follo
 ### Technologies Used
 - **Languages:** JavaScript, HTML
 - **Game Engines/Frameworks:** Firebase Studio
-- **Libraries/Assets:** 
-- **Tools:** [Version control, graphic editors, sound tools, etc.]
-
+- **Libraries/Assets:** next, react, react-dom, firebase, tailwindcss, autoprefixer, postcss
+- **Tools:** typescript, eslint, eslint-config-next, @types/react, @types/node
 ### Implementation
 
 #### Installation / Setup

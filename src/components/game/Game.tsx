@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useRef, useEffect, useCallback, SetStateAction, Dispatch } from 'react';
@@ -388,9 +389,12 @@ export default function Game({
   const despawnZombie = useCallback((zombie: Zombie) => {
     const { current: data } = gameData;
     
-    zombie.health = 0; // Ensure health is 0
+    zombie.health = 0;
 
-    // Defer removal and disposal to avoid race conditions
+    const newZombies = data.zombies.filter(z => z !== zombie);
+    data.zombies = newZombies;
+    setZombiesRemaining(newZombies.length);
+
     setTimeout(() => {
         data.scene.remove(zombie);
         zombie.traverse(child => {
@@ -403,11 +407,8 @@ export default function Game({
                 }
             }
         });
-    }, 0);
+    }, 100);
 
-    const newZombies = data.zombies.filter(z => z !== zombie);
-    data.zombies = newZombies;
-    setZombiesRemaining(newZombies.length);
 
     const isClicker = zombie.type === 'clicker';
     const bonus = isClicker || Math.random() < 0.1 ? 500 : 0; 
@@ -429,7 +430,7 @@ export default function Game({
   }, [setScore, setZombiesRemaining, playSound, setPlayerMessage, setSpecialAmmo]);
   
   const applyDamage = useCallback((zombie: Zombie, damage: number) => {
-    if (zombie.health <= 0) return; // Already dead
+    if (zombie.health <= 0) return;
     
     playSound('zombieDamage');
     zombie.health -= damage;
@@ -482,7 +483,6 @@ export default function Game({
   
     playSound('shoot');
   
-    // Step 1: Raycast to see what we hit
     const raycaster = new THREE.Raycaster();
     const rayOrigin = data.camera.getWorldPosition(new THREE.Vector3());
     const rayDirection = data.camera.getWorldDirection(new THREE.Vector3());
@@ -495,7 +495,6 @@ export default function Game({
         let hitObject = intersect.object;
         let targetZombie: Zombie | null = null;
     
-        // Traverse up to find the main zombie group if a part was hit
         let current: THREE.Object3D | null = hitObject;
         while (current) {
           if ((current as any).isZombie) {
@@ -512,13 +511,11 @@ export default function Game({
       }
     }
   
-    // Step 2: Create the visual bullet tracer
     const bulletMaterial = new THREE.MeshBasicMaterial({ color: bulletColor });
     const bulletGeometry = new THREE.SphereGeometry(0.1, 8, 8);
     const bullet = new THREE.Mesh(bulletGeometry, bulletMaterial) as Bullet;
   
-    const bulletVelocityVector = new THREE.Vector3();
-    data.camera.getWorldDirection(bulletVelocityVector);
+    const bulletVelocityVector = data.camera.getWorldDirection(new THREE.Vector3());
   
     bullet.position.copy(rayOrigin).add(bulletVelocityVector.clone().multiplyScalar(0.8));
     
@@ -537,30 +534,31 @@ export default function Game({
         audioContextRef.current = null;
     }
   }, [gameState]);
-
+  
   useEffect(() => {
-    // This hook manages wave progression.
-    if (gameState !== 'playing' || gameData.current.isWaveSpawning) return;
-
+    if (gameState !== 'playing') return;
+  
     if (wave === 0) {
       setWave(1); // Kick off the first wave
       return;
     }
-
-    if (zombiesRemaining === 0 && wave > 0) {
+  
+    const isWaveComplete = zombiesRemaining === 0 && !gameData.current.isWaveSpawning;
+  
+    if (isWaveComplete) {
       const timer = setTimeout(() => {
         setWave(w => w + 1);
-      }, 5000); // 5-second delay between waves
+      }, 3000); // 3-second delay between waves
+      
       return () => clearTimeout(timer);
     }
   }, [gameState, wave, zombiesRemaining, setWave]);
 
   useEffect(() => {
-    // This hook is responsible for ACTUALLY spawning the wave when the wave number changes.
-    if (gameState === 'playing' && wave > 0 && zombiesRemaining === 0) {
+    if (gameState === 'playing' && wave > 0 && zombiesRemaining === 0 && !gameData.current.isWaveSpawning) {
       startNewWave(wave);
     }
-  }, [wave, gameState, startNewWave]);
+  }, [wave, gameState, startNewWave, zombiesRemaining]);
 
   useEffect(() => {
     if (!mountRef.current) return;

@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useRef, useEffect, useCallback, SetStateAction, Dispatch } from 'react';
@@ -180,17 +179,42 @@ export default function Game({
     const now = ctx.currentTime;
     
     if (type === 'shoot') {
-        const oscillator = ctx.createOscillator();
+        const noiseBuffer = ctx.createBuffer(1, ctx.sampleRate * 0.2, ctx.sampleRate);
+        const output = noiseBuffer.getChannelData(0);
+        for (let i = 0; i < noiseBuffer.length; i++) {
+            output[i] = (Math.random() * 2 - 1) * 0.4;
+        }
+
+        const noise = ctx.createBufferSource();
+        noise.buffer = noiseBuffer;
+
+        const bandpass = ctx.createBiquadFilter();
+        bandpass.type = 'bandpass';
+        bandpass.frequency.value = 1500;
+        bandpass.Q.value = 0.5;
+
         const gainNode = ctx.createGain();
-        oscillator.connect(gainNode);
-        gainNode.connect(ctx.destination);
-        
-        oscillator.type = 'sawtooth';
-        oscillator.frequency.setValueAtTime(200, now);
-        gainNode.gain.setValueAtTime(0.3, now);
+        gainNode.gain.setValueAtTime(0.5, now);
         gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
-        oscillator.start(now);
-        oscillator.stop(now + 0.1);
+
+        noise.connect(bandpass);
+        bandpass.connect(gainNode);
+        gainNode.connect(ctx.destination);
+        noise.start(now);
+        noise.stop(now + 0.1);
+
+        const click = ctx.createOscillator();
+        click.type = 'square';
+        click.frequency.setValueAtTime(1000, now);
+        const clickGain = ctx.createGain();
+        clickGain.gain.setValueAtTime(0.3, now);
+        clickGain.gain.exponentialRampToValueAtTime(0.01, now + 0.03);
+        
+        click.connect(clickGain);
+        clickGain.connect(ctx.destination);
+        click.start(now);
+        click.stop(now + 0.03);
+
     } else if (type === 'playerDamage') {
         const oscillator = ctx.createOscillator();
         const gainNode = ctx.createGain();
@@ -543,24 +567,24 @@ export default function Game({
   
   useEffect(() => {
     // This effect advances the wave number.
-    if (gameState === 'playing' && wave > 0 && zombiesRemaining === 0 && !gameData.current.isWaveSpawning && gameData.current.zombies.length === 0) {
+    if (gameState === 'playing' && wave > 0 && zombiesRemaining === 0 && !gameData.current.isWaveSpawning) {
       const timer = setTimeout(() => {
         setWave(w => w + 1);
       }, 3000); // 3-second delay between waves
       
       return () => clearTimeout(timer);
     }
-  }, [gameState, wave, zombiesRemaining, setWave]);
+  }, [gameState, wave, zombiesRemaining, setWave, gameData.current.isWaveSpawning]);
 
   useEffect(() => {
     // This effect is responsible for triggering the spawning of a new wave.
-    if (gameState === 'playing' && wave > 0 && zombiesRemaining === 0 && !gameData.current.isWaveSpawning) {
+    if (gameState === 'playing' && wave > 0) {
       const zombiesInScene = gameData.current.zombies.length === 0;
-      if (zombiesInScene) {
+      if (zombiesInScene && !gameData.current.isWaveSpawning) {
           startNewWave(wave);
       }
     }
-  }, [wave, gameState, startNewWave, zombiesRemaining]);
+  }, [wave, gameState, startNewWave]);
 
   useEffect(() => {
     if (!mountRef.current) return;
@@ -1123,7 +1147,3 @@ export default function Game({
 
   return <div ref={mountRef} className="absolute inset-0 z-0" />;
 }
-
-    
-
-    

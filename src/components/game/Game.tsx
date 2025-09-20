@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useRef, useEffect, useCallback, SetStateAction, Dispatch } from 'react';
@@ -179,66 +180,80 @@ export default function Game({
     const now = ctx.currentTime;
     
     if (type === 'shoot') {
-        const duration = 0.3;
-        
-        // Main gunshot sound (crack)
-        const noiseBuffer = ctx.createBuffer(1, ctx.sampleRate * duration, ctx.sampleRate);
+        const shotDuration = 0.08; 
+        const tailDuration = 0.4;
+    
+        // Main "crack" of the shot
+        const noiseBuffer = ctx.createBuffer(1, ctx.sampleRate * shotDuration, ctx.sampleRate);
         const output = noiseBuffer.getChannelData(0);
-        for (let i = 0; i < noiseBuffer.length; i++) {
-            let t = i / (ctx.sampleRate * duration);
-            output[i] = (Math.random() * 2 - 1) * Math.pow(1 - t, 2.5);
+        for (let i = 0; i < output.length; i++) {
+            output[i] = (Math.random() * 2 - 1);
         }
-
-        const noise = ctx.createBufferSource();
-        noise.buffer = noiseBuffer;
-        
+        const crack = ctx.createBufferSource();
+        crack.buffer = noiseBuffer;
+    
+        const crackGain = ctx.createGain();
+        crackGain.gain.setValueAtTime(0.8, now);
+        crackGain.gain.exponentialRampToValueAtTime(0.01, now + shotDuration);
+    
         const bandpass = ctx.createBiquadFilter();
         bandpass.type = 'bandpass';
-        bandpass.frequency.setValueAtTime(1000, now);
-        bandpass.frequency.linearRampToValueAtTime(800, now + duration * 0.5);
+        bandpass.frequency.value = 4000;
         bandpass.Q.value = 1;
-
-        const gainNode = ctx.createGain();
-        gainNode.gain.setValueAtTime(1, now);
-        gainNode.gain.exponentialRampToValueAtTime(0.01, now + duration);
-
-        noise.connect(bandpass);
-        bandpass.connect(gainNode);
-        gainNode.connect(ctx.destination);
-
-        // Low-frequency thump
-        const thump = ctx.createOscillator();
-        thump.type = 'sine';
-        thump.frequency.setValueAtTime(150, now);
-        thump.frequency.exponentialRampToValueAtTime(50, now + duration * 0.7);
-
-        const thumpGain = ctx.createGain();
-        thumpGain.gain.setValueAtTime(0.8, now);
-        thumpGain.gain.exponentialRampToValueAtTime(0.01, now + duration * 0.7);
-
-        thump.connect(thumpGain);
-        thumpGain.connect(ctx.destination);
+    
+        crack.connect(bandpass);
+        bandpass.connect(crackGain);
+        crackGain.connect(ctx.destination);
+    
+        // Low-frequency punch
+        const punch = ctx.createOscillator();
+        punch.type = 'sine';
+        punch.frequency.setValueAtTime(120, now);
+        punch.frequency.exponentialRampToValueAtTime(80, now + 0.1);
         
-        // High-frequency metallic click
-        const click = ctx.createOscillator();
-        click.type = 'square';
-        click.frequency.setValueAtTime(4000, now);
-        click.frequency.exponentialRampToValueAtTime(2000, now + duration * 0.1);
+        const punchGain = ctx.createGain();
+        punchGain.gain.setValueAtTime(1.0, now);
+        punchGain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+    
+        punch.connect(punchGain);
+        punchGain.connect(ctx.destination);
+    
+        // Longer tail for the echo/reverb
+        const tailNoiseBuffer = ctx.createBuffer(1, ctx.sampleRate * tailDuration, ctx.sampleRate);
+        const tailOutput = tailNoiseBuffer.getChannelData(0);
+        for (let i = 0; i < tailOutput.length; i++) {
+            tailOutput[i] = (Math.random() * 2 - 1);
+        }
+        const tail = ctx.createBufferSource();
+        tail.buffer = tailNoiseBuffer;
+    
+        const tailGain = ctx.createGain();
+        tailGain.gain.setValueAtTime(0.4, now + shotDuration);
+        tailGain.gain.exponentialRampToValueAtTime(0.01, now + shotDuration + tailDuration);
+    
+        const convolver = ctx.createConvolver();
+        // A simple reverb can be faked with a decaying noise
+        const reverbTime = 0.5;
+        const reverbBuffer = ctx.createBuffer(2, ctx.sampleRate * reverbTime, ctx.sampleRate);
+        for (let channel = 0; channel < 2; channel++) {
+            const channelData = reverbBuffer.getChannelData(channel);
+            for (let i = 0; i < channelData.length; i++) {
+                channelData[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / channelData.length, 2);
+            }
+        }
+        convolver.buffer = reverbBuffer;
+    
+        tail.connect(tailGain);
+        tailGain.connect(convolver);
+        convolver.connect(ctx.destination);
+    
+        crack.start(now);
+        punch.start(now);
+        tail.start(now + shotDuration);
         
-        const clickGain = ctx.createGain();
-        clickGain.gain.setValueAtTime(0.2, now);
-        clickGain.gain.exponentialRampToValueAtTime(0.001, now + duration * 0.1);
-
-        click.connect(clickGain);
-        clickGain.connect(ctx.destination);
-
-        noise.start(now);
-        thump.start(now);
-        click.start(now);
-        
-        noise.stop(now + duration);
-        thump.stop(now + duration);
-        click.stop(now + duration);
+        crack.stop(now + shotDuration);
+        punch.stop(now + 0.1);
+        tail.stop(now + shotDuration + tailDuration);
 
     } else if (type === 'playerDamage') {
         const oscillator = ctx.createOscillator();
@@ -1158,3 +1173,5 @@ export default function Game({
 
   return <div ref={mountRef} className="absolute inset-0 z-0" />;
 }
+
+    

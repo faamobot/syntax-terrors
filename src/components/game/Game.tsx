@@ -172,7 +172,6 @@ export default function Game({
     
     lastShotTime: 0,
     lastDamageTime: 0,
-    baseBulletDamage: 20,
   });
 
   const playSound = useCallback((type: 'shoot' | 'playerDamage' | 'zombieDamage' | 'zombieMoan' | 'powerup' | 'crateLand') => {
@@ -389,9 +388,13 @@ export default function Game({
   const despawnZombie = useCallback((zombie: Zombie) => {
     const { current: data } = gameData;
     
-    zombie.health = 0;
+    // This zombie is already being processed for despawn
+    if (zombie.health > 0) return;
 
-    const newZombies = data.zombies.filter(z => z !== zombie);
+    // To prevent this function from being called multiple times for the same zombie
+    zombie.health = -1; 
+    
+    const newZombies = data.zombies.filter(z => z.uuid !== zombie.uuid);
     data.zombies = newZombies;
     setZombiesRemaining(newZombies.length);
 
@@ -407,7 +410,7 @@ export default function Game({
                 }
             }
         });
-    }, 100);
+    }, 500); // Give fade-out or death animation time
 
 
     const isClicker = zombie.type === 'clicker';
@@ -478,11 +481,12 @@ export default function Game({
       setSpecialAmmo(sa => sa - 1);
     } else {
       bulletColor = 0xffff00; // Yellow for standard
-      bulletDamage = data.baseBulletDamage;
+      bulletDamage = 20;
     }
   
     playSound('shoot');
   
+    // 1. Raycast for hits
     const raycaster = new THREE.Raycaster();
     const rayOrigin = data.camera.getWorldPosition(new THREE.Vector3());
     const rayDirection = data.camera.getWorldDirection(new THREE.Vector3());
@@ -495,6 +499,7 @@ export default function Game({
         let hitObject = intersect.object;
         let targetZombie: Zombie | null = null;
     
+        // Traverse up the hierarchy to find the parent Zombie group
         let current: THREE.Object3D | null = hitObject;
         while (current) {
           if ((current as any).isZombie) {
@@ -506,16 +511,17 @@ export default function Game({
     
         if (targetZombie) {
           applyDamage(targetZombie, bulletDamage);
-          break; // only process the first hit zombie
+          break; // Stop after hitting the first zombie
         }
       }
     }
   
+    // 2. Create visual bullet effect
     const bulletMaterial = new THREE.MeshBasicMaterial({ color: bulletColor });
     const bulletGeometry = new THREE.SphereGeometry(0.1, 8, 8);
     const bullet = new THREE.Mesh(bulletGeometry, bulletMaterial) as Bullet;
   
-    const bulletVelocityVector = data.camera.getWorldDirection(new THREE.Vector3());
+    const bulletVelocityVector = rayDirection.clone();
   
     bullet.position.copy(rayOrigin).add(bulletVelocityVector.clone().multiplyScalar(0.8));
     
@@ -524,7 +530,7 @@ export default function Game({
   
     data.scene.add(bullet);
     data.bullets.push(bullet);
-  }, [applyDamage, playSound, currentWeapon, specialAmmo, setSpecialAmmo, setCurrentWeapon, gameData]);
+  }, [applyDamage, playSound, currentWeapon, specialAmmo, setSpecialAmmo, setCurrentWeapon]);
 
   useEffect(() => {
     if (gameState === 'playing' && !audioContextRef.current) {
@@ -537,15 +543,11 @@ export default function Game({
   
   useEffect(() => {
     if (gameState !== 'playing') return;
-  
-    if (wave === 0) {
-      setWave(1); // Kick off the first wave
-      return;
-    }
-  
+
+    // This effect is responsible for advancing waves.
     const isWaveComplete = zombiesRemaining === 0 && !gameData.current.isWaveSpawning;
-  
-    if (isWaveComplete) {
+
+    if (wave > 0 && isWaveComplete) {
       const timer = setTimeout(() => {
         setWave(w => w + 1);
       }, 3000); // 3-second delay between waves
@@ -555,8 +557,13 @@ export default function Game({
   }, [gameState, wave, zombiesRemaining, setWave]);
 
   useEffect(() => {
+    // This effect is responsible for triggering the spawning of a new wave.
     if (gameState === 'playing' && wave > 0 && zombiesRemaining === 0 && !gameData.current.isWaveSpawning) {
-      startNewWave(wave);
+      // Check if we are in the initial state of a wave transition
+      const zombiesInScene = gameData.current.zombies.length === 0;
+      if (zombiesInScene) {
+          startNewWave(wave);
+      }
     }
   }, [wave, gameState, startNewWave, zombiesRemaining]);
 
@@ -1111,6 +1118,13 @@ export default function Game({
     document.addEventListener('keydown', handleEscape);
     return () => document.removeEventListener('keydown', handleEscape);
   }, [gameState, onPause]);
+
+  useEffect(() => {
+    // This effect starts the very first wave.
+    if (gameState === 'playing' && wave === 1 && gameData.current.zombies.length === 0 && !gameData.current.isWaveSpawning) {
+      startNewWave(1);
+    }
+  }, [gameState, wave, startNewWave]);
 
   return <div ref={mountRef} className="absolute inset-0 z-0" />;
 }
